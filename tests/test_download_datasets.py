@@ -9,6 +9,8 @@ from types import ModuleType
 import pytest
 import yaml
 
+from ibl_ai_agent.core.access import OfflineModeError
+
 
 def _load_downloader() -> ModuleType:
     script_path = Path(__file__).resolve().parents[1] / "scripts" / "download_datasets.py"
@@ -200,3 +202,10 @@ def test_download_lfp_file_repairs_sidecars_without_redownloading(
     assert yaml.safe_load((spec.target_dir / "schema.yaml").read_text())["dataset_name"] == "bwm_lfp"
     assert (spec.target_dir / "provenance.yaml").exists()
     assert (spec.target_dir / "manifest.json").exists()
+
+def test_download_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_downloader()
+    monkeypatch.setenv("IBL_AGENT_DATA_OFFLINE", "1")
+    monkeypatch.setattr(sys, "argv", ["download_datasets.py"])
+    with pytest.raises(OfflineModeError):
+        module.main()

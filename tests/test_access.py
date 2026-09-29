@@ -47,6 +47,22 @@ def test_public_defaults_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     assert status.mode == access.AccessMode.public
     assert one.kwargs["username"] == access.PUBLIC_DEFAULT_USERNAME
 
+def test_connect_one_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBL_AGENT_DATA_OFFLINE", "1")
+    monkeypatch.setattr(access, "_import_one", lambda: DummyONE)
+    with pytest.raises(access.OfflineModeError):
+        access.connect_one(mode=access.AccessMode.public, interactive=False)
+
+def test_require_online_without_flag() -> None:
+    access.require_online()
+
+def test_require_online_when_flag_is_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBL_AGENT_DATA_OFFLINE", "0")
+    access.require_online()
+
+def test_offline_mode_error_is_access_error() -> None:
+    assert issubclass(access.OfflineModeError, access.AccessError)
+
 
 def test_search_sessions_parses_details_tuple() -> None:
     one = DummyONE()

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from ibl_ai_agent.core.access import require_online
 import boto3
 import yaml
 from boto3.s3.transfer import TransferConfig
@@ -565,7 +566,7 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
-
+    require_online()
     if args.lfp:
         return download_lfp_file(LFP_STANDARD)
 
