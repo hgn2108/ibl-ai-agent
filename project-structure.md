@@ -44,7 +44,7 @@ generic and needs no change: the BWM download offer is only produced for names i
 <dataset_root>/<dataset_name>/<version>/
 ├── README.md                  # one-paragraph summary; the only file needed to judge relevance
 ├── experiment.md              # methods section: what was done, portable and lab-neutral
-├── scientific-context.md      # optional: interpretation, hypotheses, confounds, papers
+├── scientific-context.md      # aim, caveats from the design, known confounds, papers
 ├── modalities.md              # per modality: instrument, sampling, units, timing, coverage, QC
 ├── schema.yaml                # machine-readable contract: tables, stores, clocks, frames, design
 ├── provenance.yaml            # where it came from and what was done to it
@@ -88,10 +88,15 @@ in `schema.yaml`: which factors the experiment manipulates or measures, at what
 grain, and what comparison it was built for.
 
 ### `scientific-context.md`
-Optional, non-blocking. Dataset-specific interpretation, hypotheses, known
-confounds, associated papers. Kept separate from `experiment.md` so the methods
-stay reusable, and separate from `skills/` so IBL-wide scientific context is not
-duplicated per dataset.
+Required. What the study was for and what could mislead an analysis of it. Fixed
+headings:
+`Aim` | `Caveats from the design` | `Other known confounds` | `Papers`.
+`Caveats from the design` is always filled. The ingestion skill derives it from
+facts in `experiment.md` and `modalities.md`, so it does not depend on the user
+knowing the confounds. `Aim`, `Other known confounds` and `Papers` come from the
+user or the documentation and may say "not stated" or "none known". Kept separate
+from `experiment.md` so the methods stay reusable, and separate from `skills/` so
+IBL-wide scientific context is not duplicated per dataset.
 
 ### `modalities.md`
 One section per recording modality, fixed headings:
@@ -266,13 +271,14 @@ items — an analysis agent reads it before using the package.
 ## Minimum viable package
 
 Ingestion **cannot ship** a package without: `dataset_name`, `dataset_version`, a
-`README.md` summary, a declared time base, units for every column of every
-declared table and store, `subjects` and `sessions`, `provenance.source`, and for
-every declared store either materialised data or a re-resolvable reference.
+`README.md` summary, a `scientific-context.md` with its design caveats, a declared
+time base, units for every column of every declared table and store, `subjects`
+and `sessions`, `provenance.source`, and for every declared store either
+materialised data or a re-resolvable reference.
 
 Ingestion **may ship** without, recording an entry in `open-questions.md`:
-`scientific-context.md`, `features/`, per-column prose beyond units, exact
-conversion detail for upstream-derived fields, optional modalities.
+`features/`, per-column prose beyond units, exact conversion detail for
+upstream-derived fields, optional modalities.
 
 The skill never invents a unit or a time base to close a blocking gap. It stops
 and asks. `a.u.` and `dimensionless` are valid units for quantities. Every column

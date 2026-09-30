@@ -4,6 +4,10 @@
 Approved
 2026-09-30
 
+Revised 2026-09-30: Behavior §2–4 rewritten after the LLM Agent Club meeting of
+2026-09-25. The skill now describes the package it must produce and lets the agent
+lead, instead of prescribing steps. See Decisions.
+
 ## Problem
 The agent can only analyse the IBL Brain Wide Map, because BWM's task description,
 scientific context and data layout are hard-coded across `AGENTS.md`, `skills/` and
@@ -58,7 +62,7 @@ schemas and analysis guidance untouched and BWM's builder output byte-identical.
 - Source for the aging and autism `trials` tables: `trials` objects loaded per
   session through ONE. Neither dataset has the BWM release trials aggregate parquet
   that `bwm_simple._resolve_aggregate_table` fetches, nor a BWM-style roster.
-- Loaded by `ibl_ai_agent/datasets/one_trials.py` (Behavior → 2, step 6).
+- Loaded by `ibl_ai_agent/datasets/one_trials.py` (Behavior → 2a).
 
 ## Outputs
 
@@ -67,8 +71,8 @@ Written to `<dataset_root>/<dataset_name>/<version>/`, registered in
 `data_locations.local.yaml` under `datasets:`. Contents as defined in
 `project-structure.md`:
 
-- `README.md`, `experiment.md`, `modalities.md`, `scientific-context.md` (optional in
-  general; required for the IBL aging and autism packages, see Behavior → 3)
+- `README.md`, `experiment.md`, `modalities.md`, `scientific-context.md` (required,
+  see Behavior → 3)
 - `schema.yaml`, `provenance.yaml`, `manifest.json`, `SUMMARY.md`
 - `metadata/` — core tables `subjects`, `sessions`, `recordings`, `events`,
   `epochs`; conditional tables `units`, `channels`, `trials`
@@ -77,21 +81,11 @@ Written to `<dataset_root>/<dataset_name>/<version>/`, registered in
 - `ingestion/convert.py`, `ingestion/ingestion-log.md`,
   `ingestion/open-questions.md`
 
-Constraints:
-- `schema.yaml` declares `contract_version: 1` — the version of the generic package
-  contract — alongside the existing per-dataset `schema_version`, which keeps its
-  current meaning of "version of this dataset's own layout".
-- `schema.yaml` declares `task` and, where the source records one, `task_protocol`.
-  `task: ibl_choice_world` is what gates reuse of the BWM trials extraction
-  (Behavior → 2, step 6); `task_protocol` records the iblrig protocol string and is
-  what decides whether `probabilityLeft` is written.
-- `events.event_time` is float64 seconds in the table's declared `time_base`.
-- Every column of every declared table and store declares a `units` key. `a.u.`
-  and `dimensionless` are valid for quantities; `null` is valid only for identifier,
-  categorical, boolean and string columns.
-- Every table and store names a `time_base` declared in `time_bases:`.
-- Spike shards are written by `spikepack.write_blosc` with all spike times snapped
-  to the quantization grid (Behavior → 4).
+Constraints: as in `project-structure.md`. The ones introduced by this change are
+`contract_version: 1` beside the per-dataset `schema_version`; `task` and
+`task_protocol` in `schema.yaml` (the task gates trials reuse, the protocol gates
+`probabilityLeft`); float64 `events.event_time`; and spike times snapped to the
+quantization grid before `spikepack.write_blosc` (Behavior → 4).
 
 ### Repo changes
 Enumerated in Behavior → Change surface.
@@ -104,199 +98,77 @@ Enumerated in Behavior → Change surface.
 kinds, minimum viable package, and versioning. This spec does not restate it.
 
 ### 2. Ingestion skill
-New skill `skills/ibl-ingest/SKILL.md`, marked **v0**: written from this spec and
-to be revised from the pilot's `ingestion/ingestion-log.md` and
-`ingestion/open-questions.md` once the aging and autism packages are built. The v0
-marker sits in the skill's own header so a later reader knows it has not yet been
-exercised. Steps:
+`skills/data-ingest/SKILL.md`, marked **v0** in its own header until the pilot has
+run. It describes the **end point**, a package from which a fresh agent can start
+analysing without re-ingesting, and leaves the route to the agent. The agent leads.
+It asks the user for whatever the documentation does not state and stops rather
+than inferring a blocking fact. The skill carries:
 
-1. Read the raw dataset and its documentation.
-2. Draft `README.md`, `experiment.md`, `modalities.md` from what the documentation
-   states.
-3. Identify blocking gaps. Ask the user. Do not infer. The skill leads: it asks for
-   what it needs rather than expecting the user to know. Generic checklist, asked
-   only where the documentation does not already answer it:
-   - a paper, preprint, thesis chapter or methods text describing the experiment;
-   - a description of each data file: what it contains, its units, and its clock;
-   - how clocks are synchronised across devices;
-   - whether the experiment is trial-based, and if so what defines a trial;
-   - which task was run, and which protocol — recorded as `task` and
-     `task_protocol` in `schema.yaml`. `task` decides whether the BWM trials
-     extraction is reused at all (step 6); `task_protocol` decides whether the
-     protocol uses biased blocks, and so whether `probabilityLeft` and every
-     block-derived behaviour column are written, and whether
-     `skills/ibl-analyze/references/prior_and_block_semantics.md` applies
-     (Behavior → 3);
-   - subject metadata: line, genotype, sex, date of birth, cohort;
-   - the source-selection rule (which units or ROIs were kept, and why);
-   - the experimental design: which factors are manipulated or measured, at what
-     grain, and what comparison the experiment was built for.
-   Every question asked and its answer go in `ingestion/ingestion-log.md`.
-4. Measure and estimate before converting anything in bulk. Measure raw size per
-   session, then write shards for 2–3 sessions and measure the result. Estimate the
-   full run from those measurements and present the estimate to the user before
-   starting it. This is the repo's existing "Start small" policy (`AGENTS.md`)
-   applied to ingestion, not a new rule. The outcome decides whether spikes are
-   converted to shards or referenced in place, so it precedes `schema.yaml`, which
-   declares the store kinds.
-5. Write `schema.yaml` — `contract_version`, tables, stores, `time_bases`,
-   `reference_frames`, `design`, per-column `units`.
-6. Materialise the metadata tables as parquet. For the IBL aging and autism
-   packages the `trials` table and its reshape into `events` reuse the existing
-   `bwm_behavior` extraction — `bwm_simple._build_trials`
-   (`ibl_ai_agent/datasets/bwm_simple.py:276`) and `bwm_ephys._build_events`
-   (`ibl_ai_agent/datasets/bwm_ephys.py:907`), the pair `bwm_behavior` itself calls
-   at `ibl_ai_agent/datasets/bwm_behavior.py:299-301` — generalised to cover the
-   non-BWM case rather than duplicated.
+- what each package file must let the next agent do, with `README.md` as the
+  one-paragraph relevance check;
+- a checklist of what the package must contain, by what the experiment has
+  (trials, spikes, two-photon, video, LFP);
+- hard rules: never invent units or time bases; measure 2–3 sessions and get
+  approval before a full run; use the repo's tools rather than rewriting them;
+  leave BWM untouched; never overwrite a package version without asking; log
+  every question, inference and skip in `ingestion/`;
+- quality gates.
 
-   Input. `ibl_ai_agent/datasets/one_trials.py` loads the `trials` object for each
-   session through ONE and returns one concatenated DataFrame carrying an `eid`
-   column, which is what `_build_trials` consumes. Aging and autism have neither the
-   BWM release trials aggregate parquet that
-   `bwm_simple._resolve_aggregate_table` fetches nor a BWM-style roster, so this
-   loader is the only new extraction code. The package's `ingestion/convert.py`
-   calls it; it does not reimplement it.
+Conditional detail lives in `skills/data-ingest/references/`:
+`spike-shards.md` (preflight and writing, Behavior → 4), `ibl-trials.md` (the
+trials gate and columns, Behavior → 2a), and `pending-interfaces.md` (the helpers
+below, until they exist).
 
-   `_build_trials` changes. It accepts either a path or an already-loaded DataFrame
-   as its trials input, `roster` becomes optional, and the fixed `ordered` column
-   list splits into required and optional groups. With `roster=None` the roster
-   filter and merge are skipped and the roster-derived columns (`subject`, `date`,
-   `session_number`, `lab`) are not emitted. BWM's call site passes a path and a
-   roster as it does today, so BWM output is unchanged.
+### 2a. Trials and events reuse
+For packages declaring `task: ibl_choice_world`, `trials` and its reshape into
+`events` reuse `bwm_simple._build_trials` (`bwm_simple.py:276`) and
+`bwm_ephys._build_events` (`bwm_ephys.py:907`), generalised rather than
+duplicated. No other task reaches them. A generic trials builder is out of scope.
 
-   **Gate.** `_build_trials` is reached only for packages whose `schema.yaml`
-   declares `task: ibl_choice_world`. A package that declares any other task, or no
-   task, never calls it; a generic trials builder for non-IBL tasks is out of scope.
-
-   **Required columns** — the minimal set that defines an IBL trial: its extent, its
-   stimulus, the animal's response, and the outcome. A missing required column is an
-   error; ingestion stops.
-
-   - `eid` — session key, also how trials are grouped to number `trial_id`
-   - `intervals_0`, `intervals_1` — trial extent
-   - `stimOn_times` — stimulus onset, the alignment event the task is built around
-   - `contrastLeft`, `contrastRight` — the stimulus
-   - `choice` — the animal's response
-   - `feedbackType` — the outcome
-
-   **Optional columns** — every other BWM trial column. A missing optional column is
-   skipped, not an error, and the skip is recorded in both
-   `ingestion/ingestion-log.md` and `ingestion/open-questions.md`.
-
-   - `probabilityLeft` — block prior; also gated on the protocol (below)
-   - `bwm_include` — BWM's trial mask, with no aging/autism analogue
-   - `goCue_times`, `firstMovement_times`, `response_times`, `feedback_times`
-   - `goCueTrigger_times`, `stimOff_times`, `rewardVolume`, `reaction_time`
-
-   `feedbackType` is required while `feedback_times` is not: what happened defines
-   the trial, when it happened is an event time like the others, and `_build_events`
-   already skips event source columns that are absent
-   (`ibl_ai_agent/datasets/bwm_ephys.py:911-913`).
-
-   `trial_id` is computed inside the function, not read from the input, and is
-   neither required nor optional.
-
-   **Ordering constraint.** The emitted column order stays the current canonical
-   order with absent optional columns dropped in place — not required columns
-   followed by optional ones. BWM supplies every column in both groups, so its
-   output column order and contents are unchanged, which is what acceptance
-   criterion 6 asserts.
-
-   `_build_events` changes. It gains keyword-only `event_time_dtype`, defaulting to
-   `np.float32` so BWM output is unchanged, and keyword-only control of the session
-   key column and the carried columns. Ingested packages pass `np.float64`, which is
-   how the float64 `event_time` requirement is met — the cast is inside the function
-   (`ibl_ai_agent/datasets/bwm_ephys.py:920`), so up-casting its output afterwards
-   would not recover the precision. BWM keeps float32 and is not retrofitted (Out of
-   scope).
-
-   Both functions keep keying trials on `eid`. The generic tables key on
-   `session_id`, mapped as in Behavior → 7, at the call site.
-
-   `probabilityLeft` (`ibl_ai_agent/datasets/bwm_simple.py:294`) is meaningful only
-   under the biased-block full task. Neither it nor any block-derived behaviour
-   column is written unless the documentation gathered in step 3 confirms the
-   protocol uses biased blocks.
-
-   `bwm_include` (`ibl_ai_agent/datasets/bwm_simple.py:304`) has no aging/autism
-   analogue (audit item 6 in `ingestion-notes.md`); the inclusion rule is declared
-   in the package's own `schema.yaml` instead.
-7. Convert spikes to shards via `spikepack.write_blosc`, at the scale approved in
-   step 4.
-8. Reference LFP and video in place, recording re-resolution keys.
-9. Write `provenance.yaml`, `manifest.json`, `SUMMARY.md`,
-   `ingestion/convert.py`, `ingestion/ingestion-log.md`,
-   `ingestion/open-questions.md`.
-10. Register the package in `data_locations.local.yaml`.
+- `ibl_ai_agent/datasets/one_trials.py` loads `trials` per session through ONE and
+  returns one frame with an `eid` column. Aging and autism have neither the BWM
+  aggregate parquet nor a roster. `convert.py` calls this loader and does not
+  reimplement it.
+- `_build_trials` accepts a path or a DataFrame, and `roster` becomes optional.
+  With `roster=None`, `subject`, `date`, `session_number` and `lab` are not
+  emitted. The column list splits into required and optional, as listed in
+  `project-structure.md` ("Relationship to BWM"). A missing required column raises.
+  A missing optional column is skipped and recorded. Emitted order stays canonical,
+  with absent columns dropped in place.
+- `_build_events` gains keyword-only `event_time_dtype` (default `np.float32`) and
+  control of the session key and carried columns. Ingested packages pass
+  `np.float64`. The cast is internal (`bwm_ephys.py:920`), so up-casting afterwards
+  would not recover the precision.
+- `probabilityLeft` is written only if the protocol uses biased blocks.
+  `bwm_include` has no analogue, so each package declares its own inclusion rule.
+- Both functions keep keying on `eid`, mapped to `session_id` at the call site
+  (Behavior → 7). BWM's call sites are unchanged.
 
 ### 3. Minimum viable package
-Ingestion stops and asks rather than shipping without: `dataset_name`,
-`dataset_version`, the `README.md` summary, a declared time base, units for every
-column of every declared table and store, `subjects` and `sessions`,
-`provenance.source`, and for every declared store either materialised data or a
-re-resolvable reference.
+As in `project-structure.md` ("Minimum viable package").
 
-Ingestion may ship, recording an entry in `ingestion/open-questions.md`, without:
-`scientific-context.md` (except for the IBL aging and autism packages, below),
-`features/`, per-column prose beyond units, exact conversion detail for
-upstream-derived fields, optional modalities.
+This includes `scientific-context.md` for every package. Its `Caveats from the
+design` section is always filled. The skill does not ask the user for confounds,
+which they often won't know. It asks for design facts (groups compared, number of
+labs, session span, regions, trial structure, protocol) and writes the consequence
+of each from a table in `skills/data-ingest/SKILL.md`. The aim, papers and any other
+confounds come from the user and may be "not stated" or "none known".
 
-For the **IBL aging and autism packages `scientific-context.md` is required and
-blocking.** This is a pilot-specific requirement on those two packages, not a
-change to the package contract: `project-structure.md` keeps the file optional in
-general. It must carry, from the audit in `ingestion-notes.md`:
-
-- **audit item 9** — `skills/ibl-analyze/references/reproducibility_qc.md` is
-  framed entirely on cross-**lab** reproducibility. These datasets are plausibly
-  single- or few-lab, making lab a degenerate variance dimension, and that file's
-  robust/fragile lists are evidence from BWM repeated-site recordings, not a
-  general law.
-- **audit item 10** — subject is an experimental factor here, not only a coverage
-  dimension: age is a continuous between-subject covariate and genotype a
-  between-subject factor. **In a between-subject comparison N is subjects**, and
-  typically small.
-- **audit item 11** — **age or genotype may be confounded with recording quality**
-  — yield, stability, drift, engagement — so QC must be reported and compared by
-  group before any apparent neural group difference is claimed.
-- **audit item 12** — whether the protocol uses biased blocks, established at
-  ingestion from the documentation (Behavior → 2, step 3). If it does not, none of
-  `skills/ibl-analyze/references/prior_and_block_semantics.md` or the
-  `probabilityLeft` guidance applies, and the package carries no
-  `probabilityLeft` column. Stating this is what keeps routing the pilot to
-  `ibl-analyze` unchanged from carrying a known misleading reference.
-
-It must also state which BWM-specific surfaces do not apply, covering audit items
-1–7:
-
-- routing (items 1–5) — `skills/ibl-analyze/SKILL.md` default policy #7
-  ("Prefer local BWM tables and shards...", `skills/ibl-analyze/SKILL.md:33`);
-  `references/operators.md` Operator Map, BWM Loading Route and General Rules;
-  `references/visual_latency.md` inputs, whose fallback routes into the BWM release
-  helper; `references/bwm_analysis_patterns.md`, including its BWM trial mask
-  instruction.
-- inclusion and QC (items 6–7) — there is no `bwm_include` trial mask, so the
-  inclusion rule is whatever the package declares; and canonical release QC may not
-  exist, so BWM's `label >= 1.0` must not be borrowed silently.
+For packages declaring the IBL task, the table covers the audit in
+`ingestion-notes.md`: lab is degenerate with few labs (item 9); N is the number of
+subjects in a between-group comparison (item 10); recording quality must be
+compared by group first (item 11); and block guidance is inapplicable without
+biased blocks (item 12). Analysis of those packages routes to `skills/ibl-analyze/`
+unchanged, so the package file is the only place these corrections can go.
 
 ### 4. Spike shard writing
-`spikepack.write_blosc` is the only shard writer for ingested datasets.
-`extra_meta` carries, at minimum: `dataset_name`, `dataset_version`, `shard_key`,
-`shard_id`, `session_id`, `subject_id`, `source_selection_rule`, `time_base`,
-`n_spikes`, `n_units`, `cluster_encoding`, `time_encoding`, `compression`.
-
-Origins are tick-aligned. A float cannot be an exact multiple of 100 µs, so this is
-done by construction: before calling `write_blosc` the ingestion writer snaps every
-spike time to the grid,
-
-```python
-q = quantization_us
-times_seconds = np.rint(times_seconds * 1e6 / q) * q / 1e6
-```
-
-so each time, including the first, is the float that `ticks * q / 1e6` produces. The
-`time_origin_ticks` and `time_origin_seconds` decoders then agree exactly. Snapping is
-at most half a tick per spike — the same bound the encoder already applies — and is
-recorded under `provenance.yaml` `conversion.lossy`.
+`spikepack.write_blosc` is the only shard writer for ingested datasets. Every spike
+time is snapped to the quantization grid first
+(`np.rint(t * 1e6 / q) * q / 1e6`). A float cannot otherwise be an exact multiple
+of the tick, and only tick-aligned origins make the `time_origin_ticks` and
+`time_origin_seconds` decoders agree exactly. Snapping is at most half a tick and is
+recorded under `provenance.yaml` `conversion.lossy`. The required `extra_meta` keys
+and the environment preflight are in `skills/data-ingest/references/spike-shards.md`.
 
 ### 5. Shared spike reader
 `load_spike_shard` moves from `ibl_ai_agent/datasets/bwm_ephys.py` to
@@ -329,7 +201,7 @@ this repo and spikepack.
   `skills/ibl-analyze/references/bwm_analysis_patterns.md` is **not** in this
   packet; it stays conditional on a BWM question.
 - a separate Required Load Packet for **ingesting** a dataset:
-  `skills/ibl-ingest/SKILL.md`. `ibl-ingest` covers ingestion only and is not
+  `skills/data-ingest/SKILL.md`. `data-ingest` covers ingestion only and is not
   loaded for questions that analyse a package.
 
 The existing "Brain Wide Map question" packet at `AGENTS.md:70-73` stays first and
@@ -351,7 +223,7 @@ in their own `schema.yaml`. No BWM file is rewritten.
 ### 8. Pilot routing
 Aging and autism use the same IBL task, so questions analysing either package load
 `skills/ibl-analyze/` as it stands, through the analysis packet in 6. That skill is
-not edited by this change. `skills/ibl-ingest/` builds the two packages and is not
+not edited by this change. `skills/data-ingest/` builds the two packages and is not
 loaded when analysing them.
 
 The audit of BWM-specific assumptions to watch during the pilot is recorded in
@@ -409,7 +281,9 @@ Criteria 4 and 5 require `spikepack`, so their tests gate on
 
 New:
 - `specs/data-ingestion.md` (this file)
-- `skills/ibl-ingest/SKILL.md` — v0, to be revised from the pilot's ingestion notes
+- `skills/data-ingest/SKILL.md` — v0, to be revised from the pilot's ingestion notes
+- `skills/data-ingest/references/` — `spike-shards.md`, `ibl-trials.md`,
+  `pending-interfaces.md`
 - `ibl_ai_agent/datasets/spike_store.py`
 - `ibl_ai_agent/datasets/one_trials.py` — per-session ONE trials loader
 - `tests/test_spike_store.py` — criteria 1 and 3
@@ -440,7 +314,7 @@ Modified:
   and the size and protocol questions moved to settled-at-ingestion
 - `ingestion-notes.md` — open questions closed
 - `docs/data_locations.md` — registering an ingested dataset
-- `docs/skills.md` — list `skills/ibl-ingest/`
+- `docs/skills.md` — list `skills/data-ingest/`
 - `CHANGELOG.md`
 
 Read by the move, not modified:
@@ -540,18 +414,22 @@ Explicitly unchanged:
   `ingestion-notes.md`.
 - **The pilot routes to `skills/ibl-analyze/` unchanged.** User decision: aging and
   autism use the same IBL task.
-- **Analysis of an ingested dataset loads the `ibl-analyze` guardrails; `ibl-ingest`
+- **Analysis of an ingested dataset loads the `ibl-analyze` guardrails; `data-ingest`
   is for ingestion only.** User decision, correcting an earlier draft in which the
-  non-BWM packet routed analysis questions to `ibl-ingest`. The guardrails —
+  non-BWM packet routed analysis questions to `data-ingest`. The guardrails —
   metric classification, shape-before-scalar, statistical unit, ambiguity policy —
   are dataset-independent, so an ingested dataset needs them as much as BWM does;
   the ingestion skill has nothing to say about analysing a package once written.
-- **`scientific-context.md` is required for the IBL aging and autism packages.**
-  User decision. It is where the between-subject design and the recording-quality
-  confound get stated, and those are exactly the gaps the audit found in
-  `ibl-analyze` (items 9–11). Since the pilot routes to that skill unchanged, the
-  package file is the only place the correction can live. The general contract in
-  `project-structure.md` keeps the file optional.
+- **`scientific-context.md` is required for every package, and its caveats are
+  derived rather than asked.** User decision, 2026-09-30. It was first required
+  only for aging and autism, then for any IBL-task package, and was optional in
+  general. Every dataset can mislead an analysis in ways the next agent needs to
+  know, and the package file is the only place a correction to generic analysis
+  guidance can go. Users often don't know the confounds of their own data, so the
+  skill derives the caveats from design facts they can answer. This follows the
+  meeting's point that the user supplies facts and the agent leads. The first
+  cases (items 9–12 of the audit) are the gaps found in `ibl-analyze` for aging
+  and autism.
 - **The aging and autism `trials` tables reuse the `bwm_behavior` trials
   extraction, by generalising `_build_trials` and `_build_events` rather than
   writing parallel functions.** User decision. Same IBL task and the same upstream
@@ -608,7 +486,7 @@ Explicitly unchanged:
   rule, and it means the pilot does not need the size known in advance.
 - **Whether the protocol uses biased blocks is settled at ingestion time**, from
   the paper, README or metadata supplied to the agent, not in this spec. User
-  decision. It is exactly the kind of fact the step-3 documentation checklist
+  decision. It is exactly the kind of fact the skill's documentation checklist
   exists to elicit, so it needs no separate mechanism; it gates whether
   `probabilityLeft` is written and what `scientific-context.md` says about
   `prior_and_block_semantics.md`.
@@ -625,9 +503,17 @@ Explicitly unchanged:
   (`ibl_ai_agent/datasets/bwm_behavior.py:30`) — so it means "version of this
   dataset's own layout" and cannot also carry the generic contract's version.
   Adding a key leaves both meanings unambiguous and changes no existing file.
-- **`skills/ibl-ingest/SKILL.md` ships as v0.** User decision. It is written from
+- **`skills/data-ingest/SKILL.md` ships as v0.** User decision. It is written from
   this spec before the pilot has run, so the pilot's `ingestion-log.md` and
   `open-questions.md` are the evidence for its first revision.
+
+- **The skill describes the end point and lets the agent lead.** Decided at the
+  LLM Agent Club meeting of 2026-09-25 and applied 2026-09-30. The skill defines
+  what a finished package must contain and let a fresh agent do, not a fixed
+  sequence of steps. Lab data will always be missing something that shows up only
+  during conversion, so the agent asks the user whenever it gets stuck. The first
+  draft restated this spec step by step (310 lines). It is now about 130 lines, with
+  conditional detail in `references/`, in line with `skills/skill-maintenance/`.
 
 ## Open questions
 

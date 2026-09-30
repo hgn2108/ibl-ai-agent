@@ -3,6 +3,11 @@
 Working notes for the generic data-ingestion skill (branch `ingestion-pilot-aging`).
 Scope: let the agent analyse datasets beyond BWM, starting with IBL aging and autism.
 
+This file holds the evidence behind the design and what was found in the pilot.
+The decisions themselves are in `specs/data-ingestion.md`, the package contract is
+in `project-structure.md`, and the procedure is in `skills/data-ingest/SKILL.md`.
+Problems found while running the skill go in **Pilot issues** at the end.
+
 ## Spike shard format
 
 ### Decision: use `spikepack` as the shard writer for ingested datasets
@@ -232,112 +237,25 @@ and the shape-before-scalar / semantic-match / statistical-unit sections of
 `references/scientific_context_and_metric_semantics.md` carry across unchanged.
 This is the evidence for the seam above.
 
-## Package contract decisions
+## Package contract: evidence not recorded elsewhere
+The resolved contract items (age on `sessions`, re-resolvable references, the two
+version axes, the minimum viable package, the generic `events` table with BWM
+mapped reader-side, fixed headings and the discovery step) are now defined in
+`project-structure.md`, with their reasons under Decisions in
+`specs/data-ingestion.md`. What follows is the code evidence that shaped one of
+them.
 
-### Item 2 (fixed): `age_at_session` belongs on `sessions`, not `subjects`
-`subjects.parquet` carries `dob`; `sessions.parquet` carries `age_at_session_days`,
-computed at ingestion and declared with units. Age varies by session and is the
-primary scientific variable for the aging dataset — one age per subject would
-silently destroy its main axis.
-
-### Item 5 (fixed): referenced-in-place stores must be re-resolvable
-A `kind: referenced_in_place` entry records what is needed to *re-resolve* the file
-(e.g. ONE `eid`, dataset name, collection, revision), not a machine-local path. A
-local path may be cached alongside as a hint, never as the only locator.
-
-### Item 4 (resolved): two version axes
-`<name>/<version>/` is the **package** version (semver). `provenance.yaml`
-`source.version` records the **upstream** version independently. Bump rules:
-- patch — prose, metadata or documentation fixes only, no data change;
-- minor — tables/columns/modalities added without breaking existing readers;
-- major — schema-breaking change.
-A change of upstream `source.version` always forces at least a minor bump.
-
-### Item 7 (resolved): minimum viable package
-Blocking — ingestion cannot ship the package without:
-`dataset_name`, `dataset_version`, `README.md` summary, a declared `time_base`,
-**units for every column of every declared table and store**, `subjects` and
-`sessions` tables, `provenance.source`, and for every declared store either
-materialised shards or a re-resolvable reference.
-
-The units rule was originally scoped to *required* tables only. Tightened to all
-declared tables and stores, because `features/`, conditional tables and timeseries
-stores are exactly where imaging and LFP data land — the narrower rule would have
-held for the pilot and failed generally. `a.u.` and `dimensionless` are valid
-units, so fluorescence and dF/F do not stall ingestion. Every column still declares a
-`units` key; `null` is valid only for identifier, categorical, boolean and string
-columns.
-
-Non-blocking — ship with an `ingestion/open-questions.md` entry:
-`scientific-context.md`, `features/`, per-column prose beyond units, exact
-conversion detail for upstream-derived fields, and optional modalities.
-
-The skill never invents a unit or a time base to fill a blocking gap; it stops and asks.
-
-### Trials reuse (revised 2026-09-30): not a call-site-only change
-Reusing `bwm_simple._build_trials` and `bwm_ephys._build_events` for aging/autism
-was decided, but checking the code shows it cannot be done purely at the call site:
+### Trials reuse is not a call-site-only change (checked 2026-09-30)
 - `_build_trials` ends with `trials[ordered]`, where `ordered` always includes
-  `probabilityLeft` and `bwm_include`. Either column missing raises `KeyError`, and
-  both are expected to be missing here (block protocol unconfirmed; no BWM mask).
-- `_build_trials` also expects a pre-built trials aggregate parquet and a BWM-style
-  roster, which aging/autism do not have.
-- `_build_events` casts `event_time` to float32 internally; up-casting afterwards
-  cannot restore float64 precision.
+  `probabilityLeft` and `bwm_include`. Either column missing raises `KeyError`,
+  and both are expected to be missing for aging/autism.
+- `_build_trials` also expects a pre-built trials aggregate parquet and a
+  BWM-style roster, which aging/autism do not have.
+- `_build_events` casts `event_time` to float32 internally. Up-casting afterwards
+  cannot restore float64 precision. At t ~ 3000 s, float32 spacing is ~0.24 ms,
+  coarser than the 0.1 ms spike quantization.
 
-Resolved in `specs/data-ingestion.md`: generalise both functions with keyword-only
-parameters whose defaults reproduce current behaviour, guarded by a byte-identity
-test on BWM output. `_build_trials` reuse is gated on `task: ibl_choice_world`; its
-required columns are `eid`, `intervals_0`, `intervals_1`, `stimOn_times`,
-`contrastLeft`, `contrastRight`, `choice`, `feedbackType`, and every other BWM trial
-column is optional — absent means skipped and recorded, not an error. A new
-`ibl_ai_agent/datasets/one_trials.py` supplies the trials frame from per-session
-ONE, replacing the aggregate parquet and roster.
-
-### Item 8 (resolved): generic `events` table, BWM maps via a reader-side view
-Generic contract: `session_id`, `event_id`, `event_name`, `event_time`
-(seconds, **float64**, in the declared `time_base`), plus nullable `trial_id`
-(null for non-trial-based experiments) and nullable `event_value`. Extra
-denormalised columns are tolerated.
-
-BWM's existing `metadata/events.parquet` already matches on `event_id`,
-`event_name`, `event_time`, `trial_id`; only the session key differs (`eid`).
-**Do not edit BWM's table or its `schema.yaml`.** The reader holds the mapping:
-`dataset_kind: bwm` uses a built-in column map (`session_id` <- `eid`); ingested
-datasets declare `column_map` in their own `schema.yaml`.
-
-Precision note: BWM stores `event_time` as **float32**. At t ~ 3000 s float32
-spacing is ~0.24 ms, coarser than the 0.1 ms spike quantization. Ingested datasets
-must use float64. Not retrofitted to BWM.
-
-### Items 3 and 6 (accepted): fixed section headings, and a dataset-discovery step
-Prose files use fixed section headings so a loader can pull one section instead of a
-whole file. `AGENTS.md` gains a discovery step that enumerates configured datasets
-and reads their one-paragraph summaries.
-
-**Constraint: existing BWM routing must behave identically.** The new Required Load
-Packet is additive — the "Brain Wide Map question" packet stays first and unchanged,
-and discovery must not alter which files a BWM question loads.
-
-## Open questions
-All closed in `specs/data-ingestion.md`, which is Approved.
-
-- **Data size** for the aging and autism raw datasets — closed by measuring rather
-  than by answering. The first server step measures raw size per session and shard
-  size for 2–3 sessions, and the full run is estimated from those and approved
-  before it starts. Shard conversion is still the long pole; BWM's feature-refresh
-  stage alone took 4,225 s over 699 probes.
-- **Do aging and autism use biased blocks?** — closed as an ingestion-time question,
-  answered from the paper, README or metadata supplied to the agent. Determines
-  whether `prior_and_block_semantics.md` applies (audit item 12) and whether
-  `probabilityLeft` is written.
-- **How to reuse the BWM trials/events builders** without breaking BWM (above) —
-  closed: generalise both with keyword-only parameters whose defaults reproduce
-  current behaviour, guarded by a byte-identity test on BWM output. The constraint
-  is byte-identical output, not untouched files. A new
-  `ibl_ai_agent/datasets/one_trials.py` supplies the trials frame from per-session
-  ONE, since neither dataset has the BWM aggregate parquet or a roster.
-- **Local dataset revisions** — closed as out of scope for this change.
+Resolution: Behavior → 2a in `specs/data-ingestion.md`.
 
 ## Deferred: reading NWB directly (`pynapple`)
 Reading NWB directly with `pynapple` instead of converting to
@@ -440,3 +358,11 @@ I7. **Dataset validator** (`validate-dataset`): declared tables exist, primary k
     table and store names a valid time base, referenced-in-place entries re-resolve.
 I8. **spikepack read-side defect** — either upstream fix or a repo-side wrapper, so
     reading existing BWM shards through spikepack does not silently drop labels.
+
+## Pilot issues
+Problems found while running `skills/data-ingest/` on real data. Per-package
+questions stay in that package's `ingestion/open-questions.md`. Record here what
+the skill got wrong or did not cover, so its next revision has evidence: what
+happened, which dataset, and what the skill should have done.
+
+_None yet._
