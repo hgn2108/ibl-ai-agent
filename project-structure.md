@@ -34,8 +34,9 @@ datasets:
 ```
 
 `ibl_ai_agent.data_locations.resolve_dataset_dir()` is already dataset-name
-generic and needs no change beyond a non-BWM branch in the "dataset missing"
-error message (which currently offers a BWM download).
+generic and needs no change: the BWM download offer is only produced for names in
+`BWM_DATASET_DEFAULTS`, and any other unconfigured dataset gets a generic
+"not configured" error.
 
 ## Directory tree
 
@@ -104,8 +105,11 @@ per-column units, explicit clocks, spatial frames, and experimental design.
 ```yaml
 dataset_name: ibl_aging
 dataset_version: 1.0.0
-schema_version: 2
+contract_version: 1               # version of this generic package contract
+schema_version: 2                 # version of this dataset's own layout, as today
 dataset_kind: ingested            # `bwm` for the existing BWM datasets
+task: ibl_choice_world            # null when the experiment is not trial-based
+task_protocol: _iblrig_tasks_biasedChoiceWorld   # exact protocol, null if unrecorded
 
 time_bases:                       # several allowed; each store and table names one
   session_clock:
@@ -271,7 +275,9 @@ Ingestion **may ship** without, recording an entry in `open-questions.md`:
 conversion detail for upstream-derived fields, optional modalities.
 
 The skill never invents a unit or a time base to close a blocking gap. It stops
-and asks. `a.u.` and `dimensionless` are valid units.
+and asks. `a.u.` and `dimensionless` are valid units for quantities. Every column
+still declares a `units` key; `units: null` is valid only for identifier,
+categorical, boolean and string columns (as for `session_id` above).
 
 ## Versioning
 
@@ -288,11 +294,22 @@ A change of upstream `source.version` forces at least a minor bump.
 
 BWM is unchanged. Specifically:
 
-- `bwm_ephys` and `bwm_behavior` data files, `schema.yaml`, and the BWM dataset
-  builder are untouched.
+- `bwm_ephys` and `bwm_behavior` data files and `schema.yaml` are untouched.
+- The BWM builder's **output is byte-identical**. `bwm_simple._build_trials` and
+  `bwm_ephys._build_events` gain keyword-only parameters whose defaults reproduce
+  current behaviour, so ingestion reuses them instead of duplicating them; a test
+  asserts the BWM `trials` and `events` output is unchanged. The constraint is on
+  output, not on which files are edited.
 - `skills/ibl-analyze/` is untouched. Aging and autism use the same IBL task and
   route to the existing guardrails as they stand. `ingestion-notes.md` records the
   audit of BWM-specific assumptions to watch during the pilot.
+- Reuse of `bwm_simple._build_trials` is gated on `task: ibl_choice_world`. A
+  package declaring any other task, or none, never reaches it. Within that gate the
+  required columns are `eid`, `intervals_0`, `intervals_1`, `stimOn_times`,
+  `contrastLeft`, `contrastRight`, `choice`, `feedbackType` — a missing one is an
+  error. Every other BWM trial column, `probabilityLeft` and `bwm_include`
+  included, is optional: absent means skipped and recorded in the package's
+  `ingestion/ingestion-log.md` and `ingestion/open-questions.md`.
 - BWM's `metadata/events.parquet` already matches the generic `events` contract
   except for the session key (`eid`). The mapping is held **reader-side** — a
   built-in column map for `dataset_kind: bwm` — so no BWM file is rewritten.
@@ -316,8 +333,19 @@ Deferred by decision, recorded in `ingestion-notes.md`:
 - the implementation gaps: NWB/DANDI reader, per-lab readers, two-photon reader,
   tracking reader, timeseries container format, generic feature builders, the
   dataset validator, the `spikepack` read-side defect
+- reading NWB directly without conversion (e.g. `pynapple`) — a later, separate test
 
-Open:
-- raw data size for the aging and autism datasets
-- whether those protocols use biased blocks, which decides whether
-  `skills/ibl-analyze/references/prior_and_block_semantics.md` applies
+Deferred by decision, recorded in `specs/data-ingestion.md`:
+- managing dataset versions on local disk: how many are kept, how superseded ones
+  are removed, whether a rebuild may overwrite
+- codec and chunking for the `timeseries` store kind
+
+Settled at ingestion time rather than here:
+- raw data size, measured on the server per session and from shards written for 2–3
+  sessions, with the full run estimated and approved before it starts
+- whether the protocol uses biased blocks, taken from the documentation supplied to
+  the agent; it decides whether
+  `skills/ibl-analyze/references/prior_and_block_semantics.md` applies and whether
+  `probabilityLeft` is written at all
+
+Open: none.

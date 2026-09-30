@@ -37,8 +37,15 @@ Evidence (verified 2026-09-29 against `bwm_ephys/1.2.1`, probe
   `spike_clusters.blosc` are not byte-identical (5,844,048 B vs 5,844,215 B
   total). Two causes, both benign:
   - spikepack sets `delta[0] = 0` and moves the first spike's offset into
-    `time_origin_ticks`; the BWM builder leaves `time_origin_ticks = 0` and puts
-    the offset in `delta[0]`. Same reconstructed times, different arrays.
+    `time_origin_ticks`; this shipped shard has `time_origin_ticks = 0` with the
+    offset in `delta[0]`. Same reconstructed times, different arrays.
+    **Correction (2026-09-30):** this is a difference between the *shipped release*
+    and current code, not between this repo and spikepack. The current in-repo
+    encoder (`_encode_spike_times_dataset`, `bwm_ephys.py:1534`) also sets
+    `deltas[0] = 0` and writes the offset to `time_origin_ticks`. It would not
+    produce `(0.0, 0)` for a shard whose first spike is non-zero, so the 696 shipped
+    shards with that origin were written by earlier code or had their origin keys
+    back-filled by `_normalize_spike_meta_dict` (`bwm_ephys.py:2155`).
   - Blosc/numcodecs version differences change compressed output for large
     arrays (`cluster_ids` and `cluster_spike_counts` were byte-identical).
 - File names, array names, dtypes and codec specs (`blosc/zstd/clevel 7/shuffle`)
@@ -46,6 +53,13 @@ Evidence (verified 2026-09-29 against `bwm_ephys/1.2.1`, probe
 
 So the bump is a re-encode, not a re-derivation. Version it as such and note in
 the changelog that shard bytes change while spike times do not.
+
+Given the correction above, "switching would change the bytes" is not by itself a
+reason to wait: rebuilding with the *current in-repo* encoder would also change the
+bytes relative to 1.2.1. The remaining reason to defer is scope — the pilot should
+not touch the BWM builder. The in-repo encoder also has the same non-tick-aligned
+origin behaviour as spikepack (`origin_ticks = rint(t0 / q)` while deltas are taken
+from `t - t0`), so the precision caveat below applies to any BWM rebuild too.
 
 ### Decision: shared reader, BWM writer untouched
 
@@ -89,8 +103,10 @@ before" constraint.
 
 Instead: keep `load_spike_shard` using `time_origin_ticks` (current behaviour,
 BWM unchanged), and **require the ingestion writer to emit tick-aligned origins**,
-which removes the discrepancy at the source. The both-variants test can then
-assert exact equality.
+which removes the discrepancy at the source. A float cannot be an exact multiple of
+100 us, so this is done by snapping every spike time to the grid before writing —
+`np.rint(t * 1e6 / q) * q / 1e6` — and recording that as lossy in provenance. The
+both-variants test can then assert exact equality on synthetic on-grid inputs.
 
 ### Not doing
 
@@ -197,12 +213,15 @@ is recorded below; treat it as the list to check during the pilot, not as work t
     apparent neural group differences. This is the across-subject analogue of
     `scientific_caveats/firing_rate_nonstationarity.md` and does not exist.
 
-### Task — conditional on an unresolved fact
+### Task — conditional on a fact established at ingestion
 12. `references/prior_and_block_semantics.md` and the `probabilityLeft` guidance
     assume the **biased-block full task**. `ibl-load/references/ibl_behavior_task.md`
     itself warns to distinguish the equal-probability basic task from the biased-block
-    full task. **Open question: do aging and autism use biased blocks?** If not, all
-    prior/block guidance is inapplicable.
+    full task. Whether aging and autism use biased blocks is read from the
+    documentation at ingestion and recorded as `task_protocol` in the package's
+    `schema.yaml`. If they do not, all prior/block guidance is inapplicable,
+    `probabilityLeft` is not written, and the package's `scientific-context.md` says
+    so.
 13. `ibl-load/references/bwm_release_scope.md` anchors scale at 621,733 neurons /
     699 probes / 139 mice / 12 labs. Conditionally routed, but if it lands in context
     for an aging question it anchors expectations wrongly.
@@ -245,13 +264,35 @@ The units rule was originally scoped to *required* tables only. Tightened to all
 declared tables and stores, because `features/`, conditional tables and timeseries
 stores are exactly where imaging and LFP data land — the narrower rule would have
 held for the pilot and failed generally. `a.u.` and `dimensionless` are valid
-units, so fluorescence and dF/F do not stall ingestion.
+units, so fluorescence and dF/F do not stall ingestion. Every column still declares a
+`units` key; `null` is valid only for identifier, categorical, boolean and string
+columns.
 
 Non-blocking — ship with an `ingestion/open-questions.md` entry:
 `scientific-context.md`, `features/`, per-column prose beyond units, exact
 conversion detail for upstream-derived fields, and optional modalities.
 
 The skill never invents a unit or a time base to fill a blocking gap; it stops and asks.
+
+### Trials reuse (revised 2026-09-30): not a call-site-only change
+Reusing `bwm_simple._build_trials` and `bwm_ephys._build_events` for aging/autism
+was decided, but checking the code shows it cannot be done purely at the call site:
+- `_build_trials` ends with `trials[ordered]`, where `ordered` always includes
+  `probabilityLeft` and `bwm_include`. Either column missing raises `KeyError`, and
+  both are expected to be missing here (block protocol unconfirmed; no BWM mask).
+- `_build_trials` also expects a pre-built trials aggregate parquet and a BWM-style
+  roster, which aging/autism do not have.
+- `_build_events` casts `event_time` to float32 internally; up-casting afterwards
+  cannot restore float64 precision.
+
+Resolved in `specs/data-ingestion.md`: generalise both functions with keyword-only
+parameters whose defaults reproduce current behaviour, guarded by a byte-identity
+test on BWM output. `_build_trials` reuse is gated on `task: ibl_choice_world`; its
+required columns are `eid`, `intervals_0`, `intervals_1`, `stimOn_times`,
+`contrastLeft`, `contrastRight`, `choice`, `feedbackType`, and every other BWM trial
+column is optional — absent means skipped and recorded, not an error. A new
+`ibl_ai_agent/datasets/one_trials.py` supplies the trials frame from per-session
+ONE, replacing the aggregate parquet and roster.
 
 ### Item 8 (resolved): generic `events` table, BWM maps via a reader-side view
 Generic contract: `session_id`, `event_id`, `event_name`, `event_time`
@@ -279,10 +320,31 @@ Packet is additive — the "Brain Wide Map question" packet stays first and unch
 and discovery must not alter which files a BWM question loads.
 
 ## Open questions
-- **Data size** for the aging and autism raw datasets — pending. Shard conversion
-  is the long pole; BWM's feature-refresh stage alone took 4,225 s over 699 probes.
-- **Do aging and autism use biased blocks?** Determines whether
-  `prior_and_block_semantics.md` applies (audit item 12).
+All closed in `specs/data-ingestion.md`, which is Approved.
+
+- **Data size** for the aging and autism raw datasets — closed by measuring rather
+  than by answering. The first server step measures raw size per session and shard
+  size for 2–3 sessions, and the full run is estimated from those and approved
+  before it starts. Shard conversion is still the long pole; BWM's feature-refresh
+  stage alone took 4,225 s over 699 probes.
+- **Do aging and autism use biased blocks?** — closed as an ingestion-time question,
+  answered from the paper, README or metadata supplied to the agent. Determines
+  whether `prior_and_block_semantics.md` applies (audit item 12) and whether
+  `probabilityLeft` is written.
+- **How to reuse the BWM trials/events builders** without breaking BWM (above) —
+  closed: generalise both with keyword-only parameters whose defaults reproduce
+  current behaviour, guarded by a byte-identity test on BWM output. The constraint
+  is byte-identical output, not untouched files. A new
+  `ibl_ai_agent/datasets/one_trials.py` supplies the trials frame from per-session
+  ONE, since neither dataset has the BWM aggregate parquet or a roster.
+- **Local dataset revisions** — closed as out of scope for this change.
+
+## Deferred: reading NWB directly (`pynapple`)
+Reading NWB directly with `pynapple` instead of converting to
+shards would remove the conversion step for NWB sources. Not part of this
+pilot; to be tried as a separate test later. Relevant to I1 below: if direct reading
+is good enough, the NWB reader may only need to write metadata tables and reference
+bulk data in place.
 
 ## Stress test: five data types
 
