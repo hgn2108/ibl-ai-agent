@@ -33,9 +33,9 @@ Default policy: use these local references first. Browse official docs only when
 5. Return connection status and provenance fields required by profile reports.
 
 ## Data-offline mode (`IBL_AGENT_DATA_OFFLINE=1`)
-- Use the cache-only profile from `references/one_auth.md`: `ONE(..., mode="local")`.
-- Do not use the bare `ONE(base_url=...)` form, or `mode="remote"`, `cache_rest`, or `no_cache=True`.
-- `connect_one()` raises `OfflineModeError` under this flag; construct `ONE` directly.
+- Perform cache-only loading with `one.api.One(cache_dir=...)`. Do not use `one.api.ONE(...)`.
+- Do not use `mode="remote"`, `cache_rest`, or `no_cache=True` as these all reach Alyx.
+- `connect_one()` raises `OfflineModeError` under this flag; construct `one.api.One(cache_dir=...)` directly.
 - Searches and loads only see what is already in the cache. If a dataset is absent, report it as missing and ask the user to provide it - do not trigger a download.
 - Record offline mode and the cache root in the provenance block.
 

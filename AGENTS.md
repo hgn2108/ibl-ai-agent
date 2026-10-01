@@ -116,7 +116,7 @@ Within these directories, name python and output files numerically prefixed to i
 ## Data-offline mode
 At the start of a session, check whether `IBL_AGENT_DATA_OFFLINE` equals `1`. If so:
 - Work from configured local datasets only.
-- Cache-only ONE loading is allowed: construct `ONE` with an explicit `mode="local"` and use `query_type="local"`.
+- Cache-only loading is allowed via `one.api.One(cache_dir=...)`. Do not use `one.api.ONE(...)`: it returns an Alyx-backed client when `base_url`, `username`, or `password` is passed, or when `cache_dir` is omitted, so `mode="local"` does not guarantee offline.
 - Do not make remote Alyx/ONE calls, run dataset download scripts, or fetch data from any other remote sources.
 - If required data is missing, ask the user to provide it.
 

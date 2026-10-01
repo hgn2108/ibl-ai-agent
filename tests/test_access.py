@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import socket
 from datetime import date
 
+from anyio import Path
 import pytest
 
 from ibl_ai_agent.core import access
@@ -63,6 +65,22 @@ def test_require_online_when_flag_is_zero(monkeypatch: pytest.MonkeyPatch) -> No
 def test_offline_mode_error_is_access_error() -> None:
     assert issubclass(access.OfflineModeError, access.AccessError)
 
+def test_recommended_offline_path_makes_no_connection_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    
+    def deny(*args, **kwargs) -> None:
+        raise AssertionError("Offline path attempted a network call")
+    
+    monkeypatch.setattr(socket.socket, "connect", deny)
+    monkeypatch.setattr(socket, "create_connection", deny)
+    monkeypatch.setattr(socket, "getaddrinfo", deny)
+
+    from one.api import One, OneAlyx
+
+    one_local = One(cache_dir=str(tmp_path))
+
+    assert not isinstance(one_local, OneAlyx)
+    assert not hasattr(one_local, "alyx")
+    assert one_local.search() == []
 
 def test_search_sessions_parses_details_tuple() -> None:
     one = DummyONE()
