@@ -365,4 +365,93 @@ questions stay in that package's `ingestion/open-questions.md`. Record here what
 the skill got wrong or did not cover, so its next revision has evidence: what
 happened, which dataset, and what the skill should have done.
 
-_None yet._
+### 2026-09-30, ibl_aging (sample build only; full run not yet approved)
+1. **The release tag did not cover the whole dataset.** `2025_Q3_Zang_et_al_Aging` tags
+   trials, video and LFP for all 497 sessions, but spike sorting only for 64 non-BWM
+   probes. The 699 BWM probes' sorting is tagged by `2024_Q2_IBL_et_al_BWM_iblsort`.
+   *The skill should* tell the agent to check which files the release tag actually
+   covers, per modality, and to record each modality's source tag in `provenance.yaml`.
+2. **The dataset overlaps an existing package.** It is a superset of BWM (459/459
+   sessions). The skill says nothing about overlap. *The skill should* ask for overlap
+   with configured datasets to be measured and stated in `README.md` and
+   `scientific-context.md` (non-independence of replications).
+3. **New design caveat: the processing pipeline and the lab mix are confounded with the
+   group.** All old-mouse additions are from one lab (36/38) and a different sorter.
+   *Add a row to the caveat table:* "Groups differ in sorter/pipeline version or lab
+   composition → the group effect is confounded with processing; check within pipeline."
+   The "One lab or a few" row has no many-lab counterpart; add "Many labs, unbalanced
+   across groups → model or stratify by lab".
+4. **Biased blocks were not stated in any documentation the agent had.** The repo docs
+   describe biased blocks but don't map `ephysChoiceWorld` to them. Measured from
+   `probabilityLeft` instead. *The skill should* allow measuring a design fact from the
+   data (logged as measured) when the documentation is silent.
+5. **Environment traps.** (a) `OneLightningAI` defaults `tables_dir` to ONE's cache dir,
+   which here is the read-only S3 mount, so pass `tables_dir` explicitly. (b) With a conda
+   env active, `uv pip install` targets conda, not `.venv`, so use
+   `--python .venv/bin/python`. (c) `uv run` re-syncs and removes the pilot spikepack
+   install, so use `uv run --no-sync`. *`references/spike-shards.md` should* give the
+   `--python` form and the `--no-sync` warning.
+6. **Subject strain/line/genotype were absent from Alyx for all subjects.** The user
+   supplied the strain from the paper. The checklist asks for these, which worked.
+7. **`project-structure.md` has no place for per-probe sorter provenance.** Mixed sorters
+   in one package needed `recordings.sorter` / `sorting_revision` / `sorting_release_tag`.
+   Consider making these part of the `recordings` contract.
+8. **spikepack `meta.json` uses `time_quantization_us`,** not `quantization_us` as in
+   `schema.yaml`. Harmless, but a validator should know both names.
+9. **Agent errors caught in self-review before the user saw them:** unverified
+   domain claims in prose (probe models, lick detection, reward/timeout details) and
+   miscounted summary statistics. *The skill should* require every number in prose files
+   to come from a computed value and every descriptive claim to cite its source (data,
+   documentation, user).
+
+### 2026-10-01, ibl_aging (session 2, after the Studio was duplicated)
+10. **The sample build was lost.** It was in the agent's `/tmp` scratchpad and its path was
+    never logged; duplicating the Studio copied the home but not `/tmp`. *The skill should*
+    require the sample build in a persistent scratch location, with its path in
+    `ingestion-log.md`. Rebuilding it took ~4 min and matched the logged numbers exactly.
+11. **Item 5(c) superseded.** The user's rule is now: run `.venv/bin/python` directly and
+    never `uv sync`/`uv run` (not even `--no-sync`) while spikepack sits outside the lockfile.
+12. **Shard bytes are not reproducible across builds.** blosc stores blocks in the order its
+    threads finish them, so the same arrays give different bytes (same size). A validator
+    or a rebuild check must compare decoded arrays, not `manifest.json` checksums.
+13. **Parallel conversion was needed and was not covered.** A per-probe process pool (one
+    ONE connection per process, results reordered) gave identical tables. Under 4-way
+    S3 contention each probe ran ~1.7× slower, so 4 workers gave ~2.2× speed-up, not 4×.
+    Peak RSS was up to 2.4 GB per worker, driven by loading all spikes before the unit
+    filter. *The skill should* say to time the sample with the intended worker count.
+14. **Publishing to S3 is the long-term target, and the skill says nothing about it.** The
+    plan is to publish finished packages (data plus text files) to S3 like BWM, with the
+    registry pointing there. In ibl_aging every path a reader needs is relative
+    (`schema.yaml`, `manifest.json`, shard `meta.json`) and referenced stores re-resolve
+    through ONE ids, so the package is location-independent. Only `ingestion/convert.py`
+    hard-codes Studio paths. *The skill should* say:
+    - **Paths:** everything a reader needs is relative to the package root; references go
+      through re-resolvable ids, never local paths; `convert.py` takes the output and
+      cache locations as arguments.
+    - **Versioning:** a published version is immutable, so any later edit, prose included,
+      is a new patch version; an unpublished version may still be edited in place. How
+      local and published versions relate is still open (`project-structure.md`).
+    - **Checksums:** write `manifest.json` last, after the final prose edit, and exclude
+      build by-products (`__pycache__` went into the first manifest here). Shard bytes are
+      not reproducible (item 12), so check uploads against the manifest, but check
+      rebuilds by decoded content.
+    - **Upload:** who uploads, the bucket layout (`<dataset>/<version>/`), verifying sizes
+      and hashes after upload, and only then pointing the registry at the published copy.
+15. **The paper contradicted the data, and the metadata explained why.** The published
+    paper says all probes used "ibl-sorter (version 2.35.0)". On Alyx, `2.35.0` is the
+    `version` field of the BWM `spikes.times` datasets, while the sorter log and the
+    release tag say pykilosort/ibl-sorter 1.7.0, and the extra probes record iblsorter
+    1.9.x. *The skill should* say to check each processing claim from the paper against the
+    data's own provenance (logs, tag descriptions, dataset version fields), and to record
+    disagreements in `scientific-context.md` and as questions for the authors, not resolve
+    them silently.
+16. **The registration step was a one-liner** once the user approved it; resolving through
+    `resolve_dataset_dir('ibl_aging')` confirmed it. The skill could say to verify
+    registration this way.
+17. **The fresh-agent check found a contract bug that the build's own column check missed.**
+    Unquoted commas inside YAML flow mappings (`{dtype: …, description: a, b}`) split 4
+    descriptions into stray keys. The column-set check passed because it compares only
+    column names. *The validator (I7) should* reject column specs with keys other than
+    `dtype`/`units`/`description`, and the skill should say to quote prose in YAML. The
+    fresh-agent pass was worth running: besides this bug it found a stale README status, the
+    main caveat missing from the README, and undocumented shard-array indexing.
