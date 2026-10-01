@@ -458,8 +458,10 @@ happened, which dataset, and what the skill should have done.
 
 ### 2026-10-01, ibl_aging, Session B (analyst test)
 A full exploration → confirmation analysis of the built package ("do old mice have lower VIS firing
-rates?"). Full report: `projects/vis_firing_rate_aging/package-test-report.md`. Gap list:
-`projects/vis_firing_rate_aging/change-log.md` (20 items).
+rates?"), then a reproduction of the paper's VISp+pm firing-rate analysis through the authors' code (items
+26–29). Full report: `projects/vis_firing_rate_aging/package-test-report.md`. Gap list:
+`projects/vis_firing_rate_aging/change-log.md` (20 items). Only the report is committed; the rest of `projects/`
+is gitignored.
 18. **The package was enough for a complete locked analysis.** The prose predicted the decisive
     confound (sorter × age × lab), the tables joined without gaps, and shards decoded about 4 s/probe
     with counts matching `units.spike_count`. Result: inconclusive (H1 p = 0.66, equivalence not shown),
@@ -486,6 +488,22 @@ rates?"). Full report: `projects/vis_firing_rate_aging/package-test-report.md`. 
 25. **The `.venv/bin/python` rule (item 11) did not reach the analysis session:** it lives only here.
     The analyst used `uv run`; spikepack survived. Put the rule where analysis sessions read it
     (`AGENTS.md` or `skills/install/`).
+26. **The package reproduces the paper's result through the authors' own code.** Feeding `ibl_aging`
+    spikes and trials into the authors' public pipeline (VISp+pm firing rate; project
+    `projects/paper_reproduction_aging/`) gives β 0.698/0.539 against the paper's 0.697/0.538, with the same
+    permutation p (0.032; 0.045–0.047 vs 0.048). 95% of per-neuron × contrast values are identical; the rest come
+    from trial-NaN differences in 4 sessions and the 100 µs spike-time snapping. All 18,755 of the paper's
+    neurons are in the package, matched by `cluster_uuid`.
+27. **Package fields alone reproduce the paper's selection.** The authors' QC steps on package fields match their
+    Table 2 at every step except one BWM probe at the ROI step (region-label difference). Their alignment and
+    Alyx-QC queries removed nothing, so items 22–23 were not blockers for this paper. The paper's neuron QC
+    uses *task-window* FR/PR: only 16,637 of 18,755 pass the stored whole-recording metrics, which strengthens item 19.
+28. **The authors' code repository was the missing source, and the package doesn't link it.** It holds the ROI
+    table, QC table, inclusion lists and per-region effect sizes that item 22 asked for. *The skill should* ask
+    for the paper's code and data repositories to be found and linked in `scientific-context.md` at ingestion,
+    and their inclusion lists checked against the package (`cluster_uuid`/pid/eid).
+29. **One session's trials disagree with the paper's:** KS046 `69c9a415` differs in every trial (up to 48 s) and
+    in count, under the same trials revision label (2025-03-03). For the ingestion side to check.
 
 ## Design question for the team: committing package snapshots
 Proposed during the aging pilot (2026-10-01); not agreed yet.
