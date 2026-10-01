@@ -203,9 +203,20 @@ def test_download_lfp_file_repairs_sidecars_without_redownloading(
     assert (spec.target_dir / "provenance.yaml").exists()
     assert (spec.target_dir / "manifest.json").exists()
 
-def test_download_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_download_offline_main(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_downloader()
     monkeypatch.setenv("IBL_AGENT_DATA_OFFLINE", "1")
     monkeypatch.setattr(sys, "argv", ["download_datasets.py"])
     with pytest.raises(OfflineModeError):
         module.main()
+
+def test_download_file_offline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_downloader()
+    version = _current_version(module, "bwm_ephys")
+    filename = f"bwm_ephys-{version}.tar"
+    destination = tmp_path / "sub" / filename
+    monkeypatch.setenv("IBL_AGENT_DATA_OFFLINE", "1")
+    with pytest.raises(OfflineModeError):
+        module.download_file(f"https://example.com/{filename}", destination)
+
+    assert not destination.parent.exists()

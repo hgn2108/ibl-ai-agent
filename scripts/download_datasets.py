@@ -211,6 +211,7 @@ def _download_http(url: str, destination: Path, chunk_size: int = 1024 * 1024) -
 
 def download_file(url: str, destination: Path) -> None:
     """Download ``url`` to ``destination``, using S3 multipart transfer when possible."""
+    require_online()
     destination.parent.mkdir(parents=True, exist_ok=True)
     if _is_s3_url(url):
         _download_s3(url, destination)
