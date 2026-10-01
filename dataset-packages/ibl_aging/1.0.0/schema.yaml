@@ -1,0 +1,594 @@
+dataset_name: ibl_aging
+dataset_version: 1.0.0
+contract_version: 1
+schema_version: 1
+dataset_kind: ingested
+task: ibl_choice_world
+task_protocol: _iblrig_tasks_ephysChoiceWorld
+time_bases:
+  session_clock:
+    origin: session_start
+    origin_definition: t = 0 at the start of the ephys acquisition; task trials start later (about 8-44
+      s)
+    clock: ibl_session_main_clock
+    aligned_to: null
+    method: 'ibllib ephys sync: behaviour (Bpod) events and every probe''s spike times are synchronised
+      upstream to the session''s main clock. Times are float64 seconds.
+
+      '
+reference_frames:
+  ccf_bregma:
+    origin: bregma
+    axes:
+    - x_ml
+    - y_ap
+    - z_dv
+    units: um
+    description: IBL atlas coordinates (Allen CCF 2017 resampled), from channels.mlapdv
+  probe_local:
+    origin: probe_tip
+    axes:
+    - lateral
+    - axial
+    units: um
+design:
+  factors:
+    age:
+      grain: between_session
+      type: continuous
+      units: days
+      column: sessions.age_at_session_days
+      note: 'Mostly between-subject: within-subject spread is at most 151 days. No age groups are defined
+        in the package.'
+    sex:
+      grain: between_subject
+      type: categorical
+      levels:
+      - M
+      - F
+      column: subjects.sex
+  intended_comparison: 'Behavioural and neural variability (response-time variability, firing rates, stimulus-induced
+    variability quenching) as a function of age, across brain regions.
+
+    '
+  statistical_unit: subject
+  inclusion_rule: 'No trial inclusion mask is shipped (BWM''s bwm_include does not apply). Units are pre-filtered
+    to clusters.metrics label == 1.
+
+    '
+tables:
+  subjects:
+    path: metadata/subjects.parquet
+    primary_key:
+    - subject_id
+    time_base: null
+    columns:
+      subject_id:
+        dtype: str
+        units: null
+        description: Alyx subject nickname
+      subject_uuid:
+        dtype: str
+        units: null
+        description: Alyx subject UUID
+      lab:
+        dtype: str
+        units: null
+        description: Alyx lab of the subject
+      sex:
+        dtype: str
+        units: null
+        description: M or F, from Alyx
+      dob:
+        dtype: date
+        units: null
+        description: Date of birth from Alyx
+      strain:
+        dtype: str
+        units: null
+        description: 'C57BL/6 for all subjects: user answer citing the paper; not recorded in Alyx'
+      line:
+        dtype: str
+        units: null
+        description: Not stated (null); absent in Alyx
+      genotype:
+        dtype: str
+        units: null
+        description: Not stated (null); absent in Alyx
+      cohort:
+        dtype: str
+        units: null
+        description: Not stated (null)
+  sessions:
+    path: metadata/sessions.parquet
+    primary_key:
+    - session_id
+    time_base: session_clock
+    columns:
+      session_id:
+        dtype: str
+        units: null
+        description: Alyx session UUID (eid)
+      subject_id:
+        dtype: str
+        units: null
+        description: FK to subjects
+      date:
+        dtype: date
+        units: null
+        description: Session date
+      session_number:
+        dtype: int16
+        units: null
+        description: Alyx session number on that date
+      start_time:
+        dtype: datetime64
+        units: null
+        description: Alyx session start time (local lab time, naive)
+      protocol:
+        dtype: str
+        units: null
+        description: Alyx task_protocol including iblrig version
+      lab:
+        dtype: str
+        units: null
+        description: Recording lab
+      rig:
+        dtype: str
+        units: null
+        description: Not recorded in the release (null)
+      in_bwm_release:
+        dtype: bool
+        units: null
+        description: Session is in the Brain Wide Map release (2024_Q2_IBL_et_al_BWM_iblsort)
+      trials_revision:
+        dtype: str
+        units: null
+        description: ALF revision of the tagged default trials table ('' = none)
+      age_at_session_days:
+        dtype: float64
+        units: days
+        description: Session date minus date of birth
+      n_trials:
+        dtype: int64
+        units: count
+        description: Rows in trials for this session
+      task_duration_s:
+        dtype: float64
+        units: seconds
+        description: Last trial end minus first trial start
+      n_recordings:
+        dtype: int16
+        units: count
+        description: Probes inserted in this session
+      n_good_units:
+        dtype: int32
+        units: count
+        description: Units with label == 1 across the session's probes
+  recordings:
+    path: metadata/recordings.parquet
+    primary_key:
+    - recording_id
+    time_base: session_clock
+    columns:
+      recording_id:
+        dtype: str
+        units: null
+        description: Alyx probe insertion UUID (pid); spike shard key
+      session_id:
+        dtype: str
+        units: null
+        description: FK to sessions
+      probe_name:
+        dtype: str
+        units: null
+        description: probe00, probe01, ...
+      subject_id:
+        dtype: str
+        units: null
+        description: FK to subjects
+      device:
+        dtype: str
+        units: null
+        description: Recording device family
+      probe_model:
+        dtype: str
+        units: null
+        description: Neuropixels model code from Alyx (3A, 3B2, ...)
+      probe_serial:
+        dtype: str
+        units: null
+        description: Probe serial number
+      alyx_qc:
+        dtype: str
+        units: null
+        description: Insertion QC outcome from Alyx json.qc
+      sync_source:
+        dtype: str
+        units: null
+        description: How spike times reach the session clock
+      sorter:
+        dtype: str
+        units: null
+        description: Spike sorting collection used (pykilosort or iblsorter); null if none exists
+      sorting_revision:
+        dtype: str
+        units: null
+        description: ALF revision of the sorting used (null = unrevisioned)
+      sorting_release_tag:
+        dtype: str
+        units: null
+        description: Alyx release tag that the sorting files carry
+      has_spikes:
+        dtype: bool
+        units: null
+        description: A spike sorting exists and was converted
+      n_good_units:
+        dtype: int32
+        units: count
+        description: Units with label == 1
+      conversion_error:
+        dtype: str
+        units: null
+        description: Error raised while converting this probe, else null
+  units:
+    path: metadata/units.parquet
+    primary_key:
+    - recording_id
+    - cluster_id
+    time_base: session_clock
+    columns:
+      recording_id:
+        dtype: str
+        units: null
+        description: FK to recordings; spike shard key
+      session_id:
+        dtype: str
+        units: null
+        description: FK to sessions
+      cluster_id:
+        dtype: int32
+        units: null
+        description: Cluster index within the sorting; spike_clusters value in the shard
+      cluster_uuid:
+        dtype: str
+        units: null
+        description: clusters.uuids
+      channel_id:
+        dtype: int32
+        units: null
+        description: Peak channel index; FK to channels within recording
+      atlas_id:
+        dtype: int64
+        units: null
+        description: Allen CCF 2017 region id of the peak channel
+      acronym:
+        dtype: str
+        units: null
+        description: Allen region acronym
+      beryl_acronym:
+        dtype: str
+        units: null
+        description: Region acronym in the IBL Beryl parcellation
+      x:
+        dtype: float64
+        units: um
+        description: ML coordinate of the peak channel (ccf_bregma)
+      y:
+        dtype: float64
+        units: um
+        description: AP coordinate of the peak channel (ccf_bregma)
+      z:
+        dtype: float64
+        units: um
+        description: DV coordinate of the peak channel (ccf_bregma)
+      depth_um:
+        dtype: float64
+        units: um
+        description: clusters.depths, distance along the probe (probe_local axial)
+      label:
+        dtype: float64
+        units: dimensionless
+        description: Fraction of the three IBL single-unit metrics passed; always 1 here
+      firing_rate:
+        dtype: float64
+        units: Hz
+        description: clusters.metrics firing_rate over the whole recording
+      spike_count:
+        dtype: int64
+        units: count
+        description: clusters.metrics spike_count
+      amp_median:
+        dtype: float64
+        units: volts
+        description: Median spike amplitude (brainbox single_units)
+      presence_ratio:
+        dtype: float64
+        units: dimensionless
+        description: Fraction of time bins with spikes
+      contamination:
+        dtype: float64
+        units: dimensionless
+        description: Refractory-period contamination estimate
+      drift:
+        dtype: float64
+        units: um/hour
+        description: Cumulative absolute depth change per hour
+      slidingRP_viol:
+        dtype: float64
+        units: dimensionless
+        description: Sliding refractory-period metric pass flag (1 = pass)
+      noise_cutoff:
+        dtype: float64
+        units: dimensionless
+        description: Amplitude-distribution noise cutoff statistic
+  channels:
+    path: metadata/channels.parquet
+    primary_key:
+    - recording_id
+    - channel_id
+    time_base: null
+    columns:
+      recording_id:
+        dtype: str
+        units: null
+        description: FK to recordings
+      session_id:
+        dtype: str
+        units: null
+        description: FK to sessions
+      channel_id:
+        dtype: int32
+        units: null
+        description: Channel index in the sorting's channels object
+      raw_index:
+        dtype: int32
+        units: null
+        description: channels.rawInd, index into the raw recording
+      atlas_id:
+        dtype: int64
+        units: null
+        description: Allen CCF 2017 region id
+      acronym:
+        dtype: str
+        units: null
+        description: Allen region acronym
+      beryl_acronym:
+        dtype: str
+        units: null
+        description: Beryl parcellation acronym
+      x:
+        dtype: float64
+        units: um
+        description: ML (ccf_bregma)
+      y:
+        dtype: float64
+        units: um
+        description: AP (ccf_bregma)
+      z:
+        dtype: float64
+        units: um
+        description: DV (ccf_bregma)
+      lateral_um:
+        dtype: float64
+        units: um
+        description: Lateral position on the probe (probe_local)
+      axial_um:
+        dtype: float64
+        units: um
+        description: Axial position from the tip (probe_local)
+  trials:
+    path: metadata/trials.parquet
+    primary_key:
+    - session_id
+    - trial_id
+    time_base: session_clock
+    columns:
+      session_id:
+        dtype: str
+        units: null
+        description: FK to sessions
+      trial_id:
+        dtype: int32
+        units: null
+        description: 0-based trial index within session
+      choice:
+        dtype: float64
+        units: null
+        description: 'IBL ALF convention: -1 = CCW wheel turn, +1 = CW wheel turn, 0 = no-go'
+      feedbackType:
+        dtype: float64
+        units: null
+        description: +1 correct (rewarded), -1 error
+      probabilityLeft:
+        dtype: float64
+        units: dimensionless
+        description: 'Block prior P(stimulus left): 0.5 for the first 90 trials, then 0.2/0.8 blocks'
+      contrastLeft:
+        dtype: float64
+        units: dimensionless
+        description: Michelson contrast of left stimulus (NaN if on right)
+      contrastRight:
+        dtype: float64
+        units: dimensionless
+        description: Michelson contrast of right stimulus (NaN if on left)
+      intervals_0:
+        dtype: float64
+        units: seconds
+        description: Trial start
+      stimOn_times:
+        dtype: float64
+        units: seconds
+        description: Stimulus onset
+      goCue_times:
+        dtype: float64
+        units: seconds
+        description: Go cue tone onset
+      firstMovement_times:
+        dtype: float64
+        units: seconds
+        description: First wheel movement after go cue
+      response_times:
+        dtype: float64
+        units: seconds
+        description: Response registered (threshold reached or timeout)
+      feedback_times:
+        dtype: float64
+        units: seconds
+        description: Feedback onset
+      intervals_1:
+        dtype: float64
+        units: seconds
+        description: Trial end
+      goCueTrigger_times:
+        dtype: float64
+        units: seconds
+        description: Bpod go-cue trigger
+      stimOff_times:
+        dtype: float64
+        units: seconds
+        description: Stimulus offset
+      rewardVolume:
+        dtype: float64
+        units: uL
+        description: Water delivered
+  events:
+    path: metadata/events.parquet
+    primary_key:
+    - session_id
+    - event_id
+    time_base: session_clock
+    columns:
+      session_id:
+        dtype: str
+        units: null
+        description: FK to sessions
+      event_id:
+        dtype: int32
+        units: null
+        description: 0-based event index within session
+      event_name:
+        dtype: str
+        units: null
+        description: interval_start, stimOn, goCue, firstMovement, response, feedback, interval_end
+      event_time:
+        dtype: float64
+        units: seconds
+        description: Event time
+      trial_id:
+        dtype: int32
+        units: null
+        description: FK to trials
+      event_value:
+        dtype: float64
+        units: null
+        description: Unused (all NaN)
+  epochs:
+    path: metadata/epochs.parquet
+    primary_key:
+    - session_id
+    - epoch_set
+    - epoch_id
+    time_base: session_clock
+    columns:
+      session_id:
+        dtype: str
+        units: null
+        description: FK to sessions
+      epoch_set:
+        dtype: str
+        units: null
+        description: Labelling namespace
+      epoch_id:
+        dtype: int32
+        units: null
+        description: Index within set
+      label:
+        dtype: str
+        units: null
+        description: Epoch label
+      start_time:
+        dtype: float64
+        units: seconds
+        description: Epoch start
+      stop_time:
+        dtype: float64
+        units: seconds
+        description: Epoch end
+stores:
+  spikes:
+    kind: spike_shards
+    path: spikes
+    shard_key: recording_id
+    container_format: blosc_file_shards
+    shard_layout: <recording_id>/meta.json + <recording_id>/*.blosc
+    arrays:
+    - spike_times_delta_ticks
+    - spike_clusters
+    - cluster_ids
+    - cluster_spike_counts
+    array_notes:
+      spike_clusters: cluster_id of each spike (not an index into cluster_ids)
+      cluster_ids: the good (label == 1) cluster_ids in this shard; equal to units.cluster_id for the
+        recording
+      cluster_spike_counts: spike count per cluster, indexed by cluster_id (length max(cluster_id) + 1);
+        zero for clusters not kept
+      spike_times_seconds: 'computed by the reader: cumsum(delta ticks) + time_origin_ticks, times quantization_us'
+    written_by: spikepack==0.1.0
+    reader: ibl_ai_agent.datasets.bwm_ephys.load_spike_shard
+    quantization_us: 100
+    time_base: session_clock
+    units: seconds
+    source_selection_rule: clusters.metrics label == 1
+  lfp:
+    kind: referenced_in_place
+    reader: spikeglx
+    units: volts
+    time_base: session_clock
+    note: raw LF band; sample-to-session-clock mapping via the probe's sync / timestamps datasets
+    resolve:
+      one_base_url: https://openalyx.internationalbrainlab.org
+      tag: 2025_Q3_Zang_et_al_Aging
+      session: recordings.session_id
+      collection: raw_ephys_data/<probe_name>
+      dataset: _spikeglx_ephysData_*.lf.cbin (+ .ch, .meta, .sync.npy, .timestamps.npy)
+      revision: null
+  wheel:
+    kind: referenced_in_place
+    reader: one.load_object(eid, 'wheel')
+    units:
+      position: radians
+      timestamps: seconds
+    time_base: session_clock
+    resolve:
+      tag: 2025_Q3_Zang_et_al_Aging
+      session: sessions.session_id
+      collection: alf
+      dataset: _ibl_wheel.position.npy, _ibl_wheel.timestamps.npy, _ibl_wheelMoves.*
+      revision: default
+  video_and_pose:
+    kind: referenced_in_place
+    reader: one.load_object(eid, '<left|right|body>Camera')
+    units:
+      times: seconds
+      pose: pixels
+      ROIMotionEnergy: a.u.
+    time_base: session_clock
+    resolve:
+      tag: 2025_Q3_Zang_et_al_Aging
+      session: sessions.session_id
+      collection: alf, raw_video_data
+      dataset: _ibl_<cam>Camera.times.npy, .dlc.pqt, .lightningPose.pqt (some sessions), .features.pqt,
+        <cam>Camera.ROIMotionEnergy.npy, _iblrig_<cam>Camera.raw.mp4
+      revision: default
+  licks:
+    kind: referenced_in_place
+    reader: one.load_dataset(eid, 'licks.times.npy')
+    units: seconds
+    time_base: session_clock
+    resolve:
+      tag: 2025_Q3_Zang_et_al_Aging
+      session: sessions.session_id
+      collection: alf
+      dataset: licks.times.npy
+      revision: default

@@ -1,0 +1,37 @@
+source:
+  url: https://openalyx.internationalbrainlab.org
+  release_tag: 2025_Q3_Zang_et_al_Aging
+  spike_sorting_release_tag_bwm_probes: 2024_Q2_IBL_et_al_BWM_iblsort
+  doi: 10.1101/2025.08.22.671763
+  lab: International Brain Laboratory (12 labs)
+  contact: not stated
+  version: 2025_Q3_Zang_et_al_Aging
+  access: public
+conversion:
+  steps:
+  - list sessions, insertions and subjects tagged with the release on OpenAlyx
+  - load trials per session through ONE at the session's default tagged revision
+  - build trials (canonical IBL columns) and events (float64 seconds) with pilot stand-ins
+  - 'per probe: load clusters.metrics, clusters and channels from the chosen sorting; keep label == 1'
+  - 'per probe: load spikes.times/clusters, keep good-unit spikes, snap to the 100 us grid, write with
+    spikepack.write_blosc'
+  - write metadata parquet, schema.yaml, provenance.yaml, manifest.json, SUMMARY.md
+  tools:
+    spikepack: 0.1.0 @ 30ab06ff7794d89cab17cb54338db869ad90d036
+    ibl-ai-agent: 1ec84e0a38ad9207f80f88b88f7b4121eee92282
+    python: 3.12.13
+  lossy:
+  - spike times snapped to the 100 us grid (max shift 50 us) before shard encoding
+  dropped:
+  - spikes of units with label < 1
+  - spike amplitudes, depths, templates and waveforms
+  - trials.intervals_bpod, quiescencePeriod, stimOnTrigger_times, stimOffTrigger_times
+  - passive-protocol data
+  - LFP, raw ephys, video, wheel, pose, licks and motion energy (referenced in place)
+  - 'trials column absent upstream: reaction_time'
+source_selection_rule: clusters.metrics label == 1 (all three IBL single-unit metrics pass); user decision
+trials_probabilityLeft_written: true
+conversion_failures: {}
+build_seconds: 6115.7
+ingested_at: '2026-10-01T12:37:23+00:00'
+ingested_by: Claude Code (data-ingest skill v0) for the IBL aging ingestion pilot

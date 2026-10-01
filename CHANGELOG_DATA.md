@@ -9,6 +9,16 @@ Dataset versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `ibl_aging 1.0.0` (aging pilot of `skills/data-ingest`, built 2026-10-01, not yet
+  published): 158 mice, 497 sessions (459 BWM + 38 old-mouse), 767 probes (763 with
+  spikes), 79,571 good units (`label == 1`), 324,996 trials, from OpenAlyx release
+  `2025_Q3_Zang_et_al_Aging` plus BWM sorting from `2024_Q2_IBL_et_al_BWM_iblsort`.
+  Zang et al., Nat. Commun. 2026, doi:10.1038/s41467-026-74227-1. Sorter version is
+  confounded with age; see the package's `scientific-context.md`.
+- Proposed: a text snapshot of the package in `dataset-packages/ibl_aging/1.0.0/`
+  (no data, no `manifest.json`); the package on disk stays the source of truth.
+
 ---
 
 ## [bwm_lfp 1.1.0] - 2026-08-23

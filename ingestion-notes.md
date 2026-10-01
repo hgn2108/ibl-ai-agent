@@ -455,3 +455,28 @@ happened, which dataset, and what the skill should have done.
     `dtype`/`units`/`description`, and the skill should say to quote prose in YAML. The
     fresh-agent pass was worth running: besides this bug it found a stale README status, the
     main caveat missing from the README, and undocumented shard-array indexing.
+
+## Design question for the team: committing package snapshots
+Proposed during the aging pilot (2026-10-01); not agreed yet.
+`project-structure.md` says package prose lives in the package, outside the repo. For
+review, the pilot copied a text snapshot of `ibl_aging 1.0.0` into
+`dataset-packages/ibl_aging/1.0.0/` (11 files, 96.5 KB): `README.md`, `experiment.md`,
+`modalities.md`, `scientific-context.md`, `SUMMARY.md`, `schema.yaml`, `provenance.yaml`
+and `ingestion/` (`convert.py`, `schema_source.yaml`, `ingestion-log.md`,
+`open-questions.md`). `manifest.json` (699 KB, mostly hashes of data files) is left out.
+The package on disk (later S3) stays the source of truth.
+Questions to settle:
+- Do we want snapshots at all? For: review in PRs, history of prose and contract
+  changes, `convert.py` under version control. Against: two copies that can drift.
+- Which wins when they differ, and who syncs? The proposal: the package wins; the repo
+  is copied from it, never edited directly.
+- One folder per version, or only the latest? Published versions are immutable, so a
+  folder per version matches; it grows with every patch.
+- Should a check (CI or the validator) compare the snapshot with the published
+  manifest's hashes for those files?
+- `convert.py` and the log contain Studio paths (open question 15 in the package);
+  acceptable in a snapshot?
+
+Suggestion, not done: a `just` recipe (e.g. `just snapshot-package ibl_aging 1.0.0`) that
+copies exactly these files from the registered package root, so the copy is never made
+by hand. The pilot copied them once by hand.

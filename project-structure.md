@@ -23,6 +23,12 @@ Prose lives **inside the package**, not in this repo. BWM's prose is in
 lab's dataset has no repo to keep its documentation in, so the package must carry
 its own.
 
+**Proposed (aging pilot):** the repo also holds a text snapshot of each package
+(prose, `schema.yaml`, `provenance.yaml`, `SUMMARY.md` and `ingestion/`, but not
+`manifest.json` or data) in `dataset-packages/<dataset_name>/<version>/`, for review in
+git. The package on disk or S3 stays the source of truth; the snapshot is copied from
+it, never the reverse. See `ingestion-notes.md`, "Design question for the team".
+
 ## Registration
 
 ```yaml
