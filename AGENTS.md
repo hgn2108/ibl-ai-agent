@@ -113,6 +113,13 @@ Within these directories, name python and output files numerically prefixed to i
 - If the user types `install`, read `skills/install/SKILL.md`, and interactively guide the user through the installation process.
 - Before execution, check the prerequisites for the activity using `skills/install/SKILL.md`. If a required item is missing, complete that setup before the dependent activity; missing rendering or publishing tools do not block local analysis.
 
+## Data-offline mode
+At the start of a session, check whether `IBL_AGENT_DATA_OFFLINE` equals `1`. If so:
+- Work from configured local datasets only.
+- Cache-only ONE loading is allowed: construct `ONE` with an explicit `mode="local"` and use `query_type="local"`.
+- Do not make remote Alyx/ONE calls, run dataset download scripts, or fetch data from any other remote sources.
+- If required data is missing, ask the user to provide it.
+
 ## Runtime Rules
 - Run autonomously for repository inspection, planning drafts, and code generation; do not ask the user to run shell commands manually.
 - Within an authorized stage, complete the requested artifacts, run relevant checks, and fix failures caused by your changes; pause at the next applicable scientific approval gate. Once checks pass, repeat or broaden them only for new changes, failures, or unresolved concerns.
@@ -120,7 +127,6 @@ Within these directories, name python and output files numerically prefixed to i
 - Use standard IBL APIs and local references: `one.api.ONE`, `SessionLoader`, `SpikeSortingLoader`, and `BrainRegions`.
 - Keep scripts minimal: direct imports, constants, linear load -> compute -> summarize -> plot flow.
 - If generation partially fails, keep the partial artifact and report what succeeded/failed.
-- At the start of a session, check whether `IBL_AGENT_DATA_OFFLINE` equals `1`. If so, work from configured local data only. Do not call Alyx/ONE, run dataset download scripts, or fetch data from any other remote sources. If required data is missing, ask the user to provide it.
 
 ## Brain Wide Map Defaults
 
