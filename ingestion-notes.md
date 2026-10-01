@@ -456,6 +456,37 @@ happened, which dataset, and what the skill should have done.
     fresh-agent pass was worth running: besides this bug it found a stale README status, the
     main caveat missing from the README, and undocumented shard-array indexing.
 
+### 2026-10-01, ibl_aging, Session B (analyst test)
+A full exploration → confirmation analysis of the built package ("do old mice have lower VIS firing
+rates?"). Full report: `projects/vis_firing_rate_aging/package-test-report.md`. Gap list:
+`projects/vis_firing_rate_aging/change-log.md` (20 items).
+18. **The package was enough for a complete locked analysis.** The prose predicted the decisive
+    confound (sorter × age × lab), the tables joined without gaps, and shards decoded about 4 s/probe
+    with counts matching `units.spike_count`. Result: inconclusive (H1 p = 0.66, equivalence not shown),
+    with the claim scoped to BWM-sorted mice aged about 90–460 d.
+19. **Whole-recording unit metrics misled.** `firing_rate`/`presence_ratio` include the post-task period,
+    rates rise about 2× during the task, and some units are absent for most of it. Task-window metrics
+    had to be recomputed, and two confirmation mice with VIS units nearly silent in the analysis window
+    went undetected until after the locked test. *The skill should* consider shipping per-unit
+    task-window rate, presence ratio and first/last spike time.
+20. **`units.drift` is described as µm/hour but measures firing rate × depth jitter** (medians about 1e5).
+    The values follow brainbox's definition, so probably not a conversion error. Check against source
+    `clusters.metrics.pqt` and fix the schema description (details in the gap list, item 16).
+21. **Undocumented confound found by the analyst:** probe model (62/64 iblsorter probes are 3A).
+    *The skill should* ask for every recording-level field to be cross-tabulated against the design
+    factors and the result recorded in `scientific-context.md`.
+22. **The paper's ROI, QC table, inclusion list and effect sizes were not captured.** The analyst needed
+    them (visual cortex is VISp+VISpm in the paper; the equivalence bound was meant to come from the
+    paper). *The skill should* ask for these to be extracted into `scientific-context.md` at ingestion,
+    while the paper is open.
+23. **Alignment/histology QC is not carried.** One old-mouse probe with implausible yield and region
+    labels could not be judged.
+24. **Doc mismatch:** the BWM spike example says `spike_clusters` are dense indices, but here they are
+    cluster ids (`meta.cluster_encoding`). A reader that follows the example mislabels spikes silently.
+25. **The `.venv/bin/python` rule (item 11) did not reach the analysis session:** it lives only here.
+    The analyst used `uv run`; spikepack survived. Put the rule where analysis sessions read it
+    (`AGENTS.md` or `skills/install/`).
+
 ## Design question for the team: committing package snapshots
 Proposed during the aging pilot (2026-10-01); not agreed yet.
 `project-structure.md` says package prose lives in the package, outside the repo. For
