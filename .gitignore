@@ -20,7 +20,9 @@ uv.toml
 .mplconfig/
 .jupyter_runtime/
 .ibl-ai-agent-publish/
-feedback/
+# Saved feedback JSONs. Anchored with a leading "/" so it does not also match the
+# server's Django app in server/feedback/.
+/feedback/
 server/db.sqlite3
 server/.env
 server/staticfiles/

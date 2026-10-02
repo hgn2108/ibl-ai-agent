@@ -1,0 +1,31 @@
+{% extends "feedback/base.html" %}
+{% block title %}Feedback sessions{% endblock %}
+{% block content %}
+<form method="get" style="margin-bottom:1rem">
+  <input type="text" name="q" value="{{ query }}" placeholder="Search message, host, or id…">
+  <button type="submit">Search</button>
+</form>
+<p class="muted">{{ page.paginator.count }} session{{ page.paginator.count|pluralize }}</p>
+<table>
+  <thead><tr><th>When</th><th>Host</th><th>Message</th><th>Msgs</th></tr></thead>
+  <tbody>
+  {% for s in page %}
+    <tr>
+      <td class="muted">{{ s.created_at|date:"Y-m-d H:i" }}</td>
+      <td><span class="badge">{{ s.host|default:"?" }}</span></td>
+      <td><a href="{% url 'session_detail' s.feedback_id %}">{{ s.message_preview|default:"(no message)" }}</a></td>
+      <td>{{ s.message_count }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No feedback yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if page.has_other_pages %}
+<p>
+  {% if page.has_previous %}<a href="?q={{ query }}&amp;page={{ page.previous_page_number }}">‹ prev</a>{% endif %}
+  <span class="muted">page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a href="?q={{ query }}&amp;page={{ page.next_page_number }}">next ›</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

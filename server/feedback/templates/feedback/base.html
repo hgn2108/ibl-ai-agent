@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IBL Feedback{% endblock %}</title>
+  <style>
+    :root { --user:#dbeafe; --assistant:#f1f5f9; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin:0; color:#0f172a; background:#fff; }
+    header { display:flex; justify-content:space-between; align-items:center; padding:.75rem 1rem; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+    a { color:#2563eb; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    main { max-width:900px; margin:0 auto; padding:1rem; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:.5rem; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+    .muted { color:#64748b; font-size:.85rem; }
+    input[type=text] { padding:.4rem; border:1px solid #cbd5e1; border-radius:6px; }
+    button { padding:.4rem .7rem; border:1px solid #cbd5e1; border-radius:6px; background:#fff; cursor:pointer; }
+    .badge { display:inline-block; padding:.1rem .45rem; border-radius:6px; background:#e2e8f0; font-size:.75rem; }
+    /* Chat replay */
+    .chat { display:flex; flex-direction:column; gap:.4rem; margin-top:.5rem; }
+    .msg { padding:.55rem .8rem; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; max-width:80%; }
+    .msg .role { font-size:.65rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:.2rem; }
+    .msg.user { background:var(--user); align-self:flex-end; }
+    .msg.assistant { background:var(--assistant); align-self:flex-start; }
+    .msg.system { background:transparent; color:#64748b; text-align:center; max-width:100%; font-size:.8rem; align-self:center; }
+    .msg.tool { background:#0f172a; color:#e2e8f0; font-family:ui-monospace, monospace; font-size:.8rem; max-width:100%; }
+    .msg.tool summary { cursor:pointer; color:#93c5fd; }
+    pre { white-space:pre-wrap; word-wrap:break-word; }
+  </style>
+</head>
+<body>
+  <header>
+    <div><a href="{% url 'session_list' %}"><strong>IBL Feedback</strong></a></div>
+    <div class="muted">
+      {% if user.is_authenticated %}
+        {{ user.username }} ·
+        <form action="{% url 'logout' %}" method="post" style="display:inline">
+          {% csrf_token %}<button type="submit">log out</button>
+        </form>
+      {% endif %}
+    </div>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

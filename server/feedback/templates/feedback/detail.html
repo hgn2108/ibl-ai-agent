@@ -1,0 +1,36 @@
+{% extends "feedback/base.html" %}
+{% block title %}{{ session.feedback_id }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'session_list' %}">‹ back to list</a></p>
+
+<h2>Feedback message</h2>
+<div class="msg user" style="max-width:100%"><strong>{{ session.message|default:"(no message)" }}</strong></div>
+<p class="muted">
+  host <span class="badge">{{ session.host|default:"?" }}</span> ·
+  received {{ session.created_at|date:"Y-m-d H:i" }} ·
+  client time {{ session.client_created_at|default:"?" }} ·
+  {{ session.message_count }} messages ·
+  redactions: {{ session.redaction.counts|default:"n/a" }}
+</p>
+
+<details>
+  <summary class="muted">agent / environment metadata</summary>
+  <pre>agent: {{ session.agent }}
+environment: {{ session.environment }}</pre>
+</details>
+
+<h3>Transcript</h3>
+<div class="chat">
+{% for m in session.transcript %}
+  {% if m.kind == "tool" %}
+    <details class="msg tool"><summary>{{ m.role }} · tool</summary>{{ m.text }}</details>
+  {% else %}
+    <div class="msg {{ m.role }}">
+      <div class="role">{{ m.role }}</div>{{ m.text }}
+    </div>
+  {% endif %}
+{% empty %}
+  <p class="muted">No normalized transcript was captured for this session.</p>
+{% endfor %}
+</div>
+{% endblock %}
