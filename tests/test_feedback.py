@@ -11,6 +11,8 @@ from typer.testing import CliRunner
 from ibl_ai_agent.cli import app
 from ibl_ai_agent.errors import FeedbackError
 from ibl_ai_agent.feedback import (
+    DEFAULT_FEEDBACK_TOKEN,
+    DEFAULT_FEEDBACK_URL,
     collect_feedback,
     locate_transcript,
     normalize_records,
@@ -190,6 +192,20 @@ def test_resolve_feedback_config_from_yaml(tmp_path: Path, monkeypatch: pytest.M
 
     assert url == "https://yaml.example/api"
     assert token == "yamltoken"
+
+
+def test_resolve_feedback_config_falls_back_to_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No env vars and no ibl-agent.local.yaml in tmp_path: the committed
+    # defaults make a fresh clone work with zero setup.
+    monkeypatch.delenv("IBL_AGENT_FEEDBACK_URL", raising=False)
+    monkeypatch.delenv("IBL_AGENT_FEEDBACK_TOKEN", raising=False)
+
+    url, token = resolve_feedback_config(tmp_path)
+
+    assert url == DEFAULT_FEEDBACK_URL
+    assert token == DEFAULT_FEEDBACK_TOKEN
 
 
 # ---------------------------------------------------------------------------

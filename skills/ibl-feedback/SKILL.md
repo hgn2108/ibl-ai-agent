@@ -39,9 +39,11 @@ native feedback commands for the host coding agent.
 - **Privacy.** Redaction is automatic but best-effort. Tell the user the saved JSON
   is theirs to inspect, and that the transcript is sent privately to the feedback
   server (it is not made public).
-- **If the server is not configured** (`IBL_AGENT_FEEDBACK_URL` /
-  `IBL_AGENT_FEEDBACK_TOKEN` or `ibl-agent.local.yaml` keys are missing), the
-  command saves locally and tells the user; surface that message and explain they
-  can configure the server or share the saved file directly.
+- **Server config is built in.** The agent ships with a default feedback server
+  URL and a write-only ingest token, so sending works out of the box with no
+  setup. Env vars (`IBL_AGENT_FEEDBACK_URL` / `IBL_AGENT_FEEDBACK_TOKEN`) or
+  `ibl-agent.local.yaml` keys only override the default. In the rare case the
+  command still reports the server is not configured, surface that message and
+  explain the user can share the saved `feedback/<id>.json` file directly.
 - **Host detection is automatic** (Claude Code or Codex). Only pass `--host` or
   `--session-file` if auto-detection picks the wrong transcript.

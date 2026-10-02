@@ -67,6 +67,17 @@ MAX_PAYLOAD_BYTES = 30 * 1024 * 1024
 ENV_FEEDBACK_URL = "IBL_AGENT_FEEDBACK_URL"
 ENV_FEEDBACK_TOKEN = "IBL_AGENT_FEEDBACK_TOKEN"
 
+#: Committed defaults so a fresh clone can submit feedback with zero setup.
+#: The token is intentionally shipped in the public repo: it is *write-only*
+#: (it can only POST feedback, never read anything — see ``server/README.md``)
+#: and is rotated server-side by changing ``IBL_FEEDBACK_INGEST_TOKEN`` and this
+#: constant together. Both values are overridable per machine via the
+#: ``IBL_AGENT_FEEDBACK_*`` env vars or ``ibl-agent.local.yaml`` (see
+#: :func:`resolve_feedback_config`). Replace the placeholders below with the
+#: real production URL and ingest token before relying on them.
+DEFAULT_FEEDBACK_URL = "https://ibl-agent-feedback.duckdns.org/api/feedback"
+DEFAULT_FEEDBACK_TOKEN = "82HekjRkcgAWOddVKf2dgj0sxOH8BZ-te5-xJ4FCtSM"
+
 
 # ---------------------------------------------------------------------------
 # Data containers
@@ -499,8 +510,9 @@ def collect_feedback(
 def resolve_feedback_config(root: Path | None = None) -> tuple[str | None, str | None]:
     """Resolve the feedback server URL and token.
 
-    Environment variables take precedence over the (git-ignored)
-    ``ibl-agent.local.yaml`` so a machine can override the checked-in defaults.
+    Precedence is env var > (git-ignored) ``ibl-agent.local.yaml`` > the
+    committed defaults, so a machine can override the shipped defaults while a
+    fresh clone still works with no setup.
     """
     url = os.environ.get(ENV_FEEDBACK_URL)
     token = os.environ.get(ENV_FEEDBACK_TOKEN)
@@ -511,6 +523,11 @@ def resolve_feedback_config(root: Path | None = None) -> tuple[str | None, str |
     if config is not None:
         url = url or config.feedback_url
         token = token or config.feedback_token
+
+    # Fall back to the committed defaults so a fresh clone can submit feedback
+    # with no setup. Env vars and ibl-agent.local.yaml still win above.
+    url = url or DEFAULT_FEEDBACK_URL
+    token = token or DEFAULT_FEEDBACK_TOKEN
     return url, token
 
 

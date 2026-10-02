@@ -14,11 +14,19 @@ replay of each session — behind a login, without needing AWS/SSH access.
 
 | Credential | Who holds it | Can |
 |---|---|---|
-| **Ingest token** (`IBL_FEEDBACK_INGEST_TOKEN`) | every client install | only POST feedback |
+| **Ingest token** (`IBL_FEEDBACK_INGEST_TOKEN`) | shipped in the client repo | only POST feedback |
 | **Reviewer login** (Django user) | the few people who read feedback | view sessions |
 
-A leaked ingest token can only submit junk; it cannot read anything. Rotate it
-by changing the env var on the server and redistributing.
+The ingest token is **committed in the client by design** (as
+`DEFAULT_FEEDBACK_TOKEN` in `ibl_ai_agent/feedback.py`) so anyone who clones the
+repo can submit feedback with no setup. This is safe because the token is
+*write-only*: a leaked or abused token can only submit junk feedback; it cannot
+read anything. Rotate it by changing `IBL_FEEDBACK_INGEST_TOKEN` on the server
+**and** updating `DEFAULT_FEEDBACK_TOKEN` in the client to match.
+
+Because the token is public, abuse is contained at the server, not by the
+token: nginx rate-limits the public `POST /api/feedback` endpoint per IP (see
+`deploy/nginx-ibl-feedback.conf`).
 
 ## Local development
 
@@ -93,11 +101,16 @@ These are the steps; substitute your real hostname for `feedback.example.org`.
 9. **Reverse proxy + TLS:** install `server/deploy/nginx-ibl-feedback.conf`
    (edit the hostname), enable it, then `sudo certbot --nginx -d
    feedback.example.org`.
-10. **Point the client at it** (on each user's machine):
-    ```bash
-    export IBL_AGENT_FEEDBACK_URL=https://feedback.example.org/api/feedback
-    export IBL_AGENT_FEEDBACK_TOKEN=<the INGEST_TOKEN>
+10. **Point the client at it** by baking the deployed URL and ingest token into
+    the committed defaults in `ibl_ai_agent/feedback.py`, then commit:
+    ```python
+    DEFAULT_FEEDBACK_URL = "https://feedback.example.org/api/feedback"
+    DEFAULT_FEEDBACK_TOKEN = "<the INGEST_TOKEN>"
     ```
+    Every clone then works with no per-machine setup. To override on a single
+    machine (e.g. a private deployment), set `IBL_AGENT_FEEDBACK_URL` /
+    `IBL_AGENT_FEEDBACK_TOKEN` or add `feedback_url`/`feedback_token` to
+    `ibl-agent.local.yaml`; both take precedence over the committed defaults.
 
 ## Reading feedback later
 
