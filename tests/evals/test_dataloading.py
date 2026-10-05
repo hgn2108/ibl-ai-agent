@@ -22,7 +22,6 @@ Usage per run is written to `results/usage.csv` and summarised in the terminal.
 
 from __future__ import annotations
 
-import csv
 import json
 from pathlib import Path
 
@@ -31,13 +30,12 @@ from deepeval.test_case import LLMTestCase
 
 from tests.evals.actors import build_actor
 from tests.evals.metrics import build_metrics
+from tests.evals.summarize_results import record_usage
 from tests.evals.skill_router import get_skill_files
 from tests.evals.test_codegen import assert_test
 
 _DIR = Path(__file__).parent
 REPO_ROOT = _DIR.parents[1]
-RESULTS_DIR = _DIR / "results"
-USAGE_CSV = RESULTS_DIR / "usage.csv"
 
 
 def load_questions():
@@ -84,29 +82,6 @@ def prompt_for(question):
         "Python with the run_python tool. Report every number you are asked for "
         "explicitly in your final message."
     )
-
-
-def record_usage(model_name, question_id, usage, passed):
-    """Append one run's usage to results/usage.csv.
-
-    Appending per run (rather than writing at the end) means an interrupted
-    grid still leaves the completed rows behind.
-    """
-    RESULTS_DIR.mkdir(exist_ok=True)
-    is_new = not USAGE_CSV.exists()
-    with USAGE_CSV.open("a", newline="") as handle:
-        writer = csv.writer(handle)
-        if is_new:
-            writer.writerow(
-                ["model", "question", "passed", "input_tokens", "output_tokens",
-                 "cache_read_tokens", "cache_write_tokens", "cost_usd", "num_turns",
-                 "stop_reason"]
-            )
-        writer.writerow(
-            [model_name, question_id, passed, usage.input_tokens, usage.output_tokens,
-             usage.cache_read_tokens, usage.cache_write_tokens, round(usage.cost_usd, 6),
-             usage.num_turns, usage.stop_reason]
-        )
 
 
 @pytest.mark.parametrize("question", QUESTIONS, ids=[q["id"] for q in QUESTIONS])

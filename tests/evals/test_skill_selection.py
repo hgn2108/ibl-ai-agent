@@ -13,6 +13,7 @@ from deepeval.test_case import LLMTestCase, ToolCall
 
 from tests.evals.actors import ActorJudge, build_actor
 from tests.evals.metrics import build_metrics
+from tests.evals.summarize_results import record_usage
 
 log = logging.getLogger(__name__)
 
@@ -69,8 +70,11 @@ def _actor_for(model_cfg: dict):
     return build_actor({**model_cfg, "tools": False}, cwd=REPO_ROOT)
 
 
-def _select_skills(question: str, model_cfg: dict) -> list[str]:
-    """Ask one model which skills a question needs, and parse its list.
+def _select_skills(question: str, model_cfg: dict) -> tuple[list[str], object]:
+    """Ask one model which skills a question needs. Returns (skills, RunResult).
+
+    The RunResult is returned so the caller can log token usage alongside the
+    data-loading runs, putting both questions in one summary table.
 
     Built with tools disabled: picking skills is a reading task, so the model
     needs no dataset access. Actors give every provider the same interface, so
@@ -83,8 +87,9 @@ def _select_skills(question: str, model_cfg: dict) -> list[str]:
         f"Question: {question}\n\n"
         "List only the skill names needed to answer this question, one per line. No explanations."
     )
-    response = actor.run(prompt).reply
-    return [line.strip().lstrip("- ") for line in response.splitlines() if line.strip()]
+    result = actor.run(prompt)
+    skills = [line.strip().lstrip("- ") for line in result.reply.splitlines() if line.strip()]
+    return skills, result
 
 
 GOLDENS = _load_questions()
@@ -92,7 +97,8 @@ GOLDENS = _load_questions()
 
 @pytest.mark.parametrize("golden", GOLDENS, ids=[g["id"] for g in GOLDENS])
 def test_skill_selection(golden: dict, model_cfg: dict) -> None:
-    selected = _select_skills(golden["question"], model_cfg)
+    actor = _actor_for(model_cfg)
+    selected, result = _select_skills(golden["question"], model_cfg)
     print(f"\nModel selected skills: {selected}")
 
     # Attach expected_skills to each ToolCorrectnessMetric check before building
@@ -113,4 +119,14 @@ def test_skill_selection(golden: dict, model_cfg: dict) -> None:
         tools_called=[ToolCall(name=s) for s in selected],
         expected_tools=expected_tools,
     )
-    assert_test(test_case=test_case, metrics=build_metrics(golden["checks"], evaluator=ActorJudge(_actor_for(model_cfg))))
+    passed = True
+    try:
+        assert_test(
+            test_case=test_case,
+            metrics=build_metrics(golden["checks"], evaluator=ActorJudge(actor)),
+        )
+    except AssertionError:
+        passed = False
+        raise
+    finally:
+        record_usage(actor.name, golden["id"], result.usage, passed)
