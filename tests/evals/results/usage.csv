@@ -1,0 +1,16 @@
+model,question,passed,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_usd,num_turns,stop_reason
+ministral-3b-latest,bwm-neuron-count-by-region,False,187646,5871,0,0,0.0,12,max_turns
+claude-haiku-4.5,bwm-neuron-count-by-region,False,26,4116,69989,41510,0.125698,3,answered
+claude-sonnet-5,bwm-neuron-count-by-region,True,16,3864,331281,50664,0.322657,8,answered
+mistral-small-latest,bwm-neuron-count-by-region,False,69289,2840,0,0,0.0,5,answered
+magistral-small-latest,bwm-neuron-count-by-region,False,73203,3240,0,0,0.0,5,answered
+claude-opus-5,bwm-neuron-count-by-region,True,14,5119,257068,47158,0.743147,7,answered
+ministral-14b-latest,bwm-neuron-count-by-region,False,82529,4563,0,0,0.0,5,answered
+gemma-4-31B-it,bwm-neuron-count-by-region,False,70789,1512,0,0,0.0,5,answered
+gpt-5-nano,bwm-neuron-count-by-region,False,36706,1996,0,0,0.0,3,answered
+Qwen3.8-27B,bwm-neuron-count-by-region,False,182734,6614,0,0,0.0,12,max_turns
+ministral-8b-latest,bwm-neuron-count-by-region,False,228509,10090,0,0,0.0,12,max_turns
+gpt-5-mini,bwm-neuron-count-by-region,False,194156,3230,0,0,0.0,12,max_turns
+gemini-2.5-flash,bwm-neuron-count-by-region,False,13183,0,0,0,0.0,1,malformed_function_call
+mistral-medium-latest,bwm-neuron-count-by-region,False,254299,10295,0,0,0.0,12,max_turns
+deepseek-v4.1-flash,bwm-neuron-count-by-region,False,223848,2182,0,0,0.0,12,max_turns
