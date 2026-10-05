@@ -1,0 +1,1091 @@
+[
+  {
+    "model": "opus-5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 35.7,
+    "input_tokens": 12,
+    "output_tokens": 2281,
+    "cache_read_tokens": 106072,
+    "cache_write_tokens": 24810,
+    "cost_usd": 0.35933299999999996,
+    "num_turns": 8,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "lightningPose": 436,
+            "dlc": 1
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "lightningPose": 253,
+            "dlc": 7
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll start by locating the dataset and finding the pose_availability data.\nNow let me compute the counts, checking for duplicates and tracker variety.\n## Results\n\n**Source:** `reports/datasets/bwm_behavior/2.0.0/metadata/pose_availability.parquet` (1,144 rows, 459 unique sessions).\n\n**Table structure:** one row per (session, camera). The 15 rows with `pose_present=False` have an empty `camera` string and null `tracker` \u2014 these are placeholder rows for sessions with no pose data at all. Among `pose_present=True` rows there are zero duplicate (eid, camera) pairs, so session counts equal row counts.\n\n**Sessions with pose on \u22651 camera: 444** (459 total \u2212 15 with no pose).\n\n| Camera | lightningPose | dlc | Total |\n|---|---|---|---|\n| leftCamera | 436 | 1 | 437 |\n| rightCamera | 432 | 0 | 432 |\n| bodyCamera | 253 | 7 | 260 |\n\nNearly everything is LightningPose (1,121 of 1,129 rows); DLC appears as a fallback on just 8 camera-sessions, mostly body camera. Right camera never falls back to DLC. Left/right coverage is near-universal among pose sessions (437/444 and 432/444), while body camera is available for only ~59% of them.\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\"lightningPose\": 436, \"dlc\": 1},\n    \"rightCamera\": {\"lightningPose\": 432},\n    \"bodyCamera\": {\"lightningPose\": 253, \"dlc\": 7}\n  }\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 42.8,
+    "input_tokens": 10,
+    "output_tokens": 2969,
+    "cache_read_tokens": 103399,
+    "cache_write_tokens": 8470,
+    "cost_usd": 0.2117815,
+    "num_turns": 8,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "lightningPose": 436,
+            "dlc": 1
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "lightningPose": 253,
+            "dlc": 7
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll start by locating the dataset and understanding its structure.\nThere's a `metadata/pose_availability.parquet`. Let me inspect its schema.\nPrimary key is (eid, camera), so one row per session/camera. Now let me compute the counts.\nVerified and consistent. Let me note the key structural facts I confirmed along the way.\n\n**How the table works:** `metadata/pose_availability.parquet` has 1,144 rows keyed uniquely on (eid, camera), covering all 459 sessions in the dataset. Since the key is unique, each session/camera pair has exactly one tracker \u2014 no session is double-counted across trackers on the same camera.\n\n**Two row types:**\n- 1,129 rows with `pose_present=True`, each carrying a real camera name and tracker (`lightningPose` or `dlc`).\n- 15 rows with `pose_present=False` \u2014 these are placeholders with an empty-string camera, `n_frames=0`, null tracker, and NaN timestamps. They mark sessions with no pose data at all.\n\n**Counts:** 444 sessions have pose on at least one camera. This cross-checks exactly: 444 with pose + 15 placeholder-only sessions = 459 total, confirming the two groups are disjoint (no session has both a placeholder row and real pose rows).\n\n| Camera | lightningPose | dlc | Total |\n|---|---|---|---|\n| leftCamera | 436 | 1 | 437 |\n| rightCamera | 432 | 0 | 432 |\n| bodyCamera | 253 | 7 | 260 |\n\nLightning Pose is overwhelmingly dominant (1,121 of 1,129 rows); only 8 session/camera pairs still use DLC. Left and right cameras have near-universal coverage among pose-bearing sessions (437 and 432 of 444), while body camera pose exists for only about 59% of them \u2014 the body camera is the main gap if you need all three views. Note that `rightCamera` has no DLC entries at all, so I omitted that zero from the JSON rather than emitting a `\"dlc\": 0` key.\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\n      \"lightningPose\": 436,\n      \"dlc\": 1\n    },\n    \"rightCamera\": {\n      \"lightningPose\": 432\n    },\n    \"bodyCamera\": {\n      \"lightningPose\": 253,\n      \"dlc\": 7\n    }\n  }\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 32.8,
+    "input_tokens": 12,
+    "output_tokens": 2450,
+    "cache_read_tokens": 130626,
+    "cache_write_tokens": 9154,
+    "cost_usd": 0.21927500000000003,
+    "num_turns": 9,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "lightningPose": 436,
+            "dlc": 1
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "lightningPose": 253,
+            "dlc": 7
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll start by finding the dataset location and the pose_availability data.\n## How I worked it out\n\nLoaded `metadata/pose_availability.parquet` (one row per `eid` \u00d7 `camera`, primary key confirmed unique \u2014 no duplicate eid/camera pairs) from the resolved `bwm_behavior` v2.0.0 dataset, filtered to `pose_present == True`, then counted distinct `eid`s overall and grouped by `camera` \u00d7 `tracker`.\n\n**What the table looks like:** 1,144 rows covering 459 unique sessions. 1,129 rows have `pose_present=True`; the 15 `False` rows are placeholder rows with an empty `camera` string and null `tracker` \u2014 i.e. 15 sessions in the dataset have no pose data on any camera.\n\n**Results:**\n\n- **444 of 459 sessions** have pose on at least one camera.\n- Two trackers appear: `lightningPose` (the bulk) and `dlc` (a handful of older sessions).\n\n| Camera | lightningPose | dlc | Total |\n|---|---|---|---|\n| leftCamera | 436 | 1 | 437 |\n| rightCamera | 432 | \u2014 | 432 |\n| bodyCamera | 253 | 7 | 260 |\n\nNote that within a camera each session has exactly one tracker, so the tracker counts sum cleanly to the per-camera totals. Left and right cameras have near-universal coverage; body camera is tracked for only about 57% of sessions.\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\"lightningPose\": 436, \"dlc\": 1},\n    \"rightCamera\": {\"lightningPose\": 432},\n    \"bodyCamera\": {\"lightningPose\": 253, \"dlc\": 7}\n  }\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 73.2,
+    "input_tokens": 14,
+    "output_tokens": 5786,
+    "cache_read_tokens": 160872,
+    "cache_write_tokens": 19921,
+    "cost_usd": 0.425519,
+    "num_turns": 10,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5899,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6226,
+          "0.5": 0.5025,
+          "0.8": 0.5847
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll start by finding the dataset and understanding its structure.\nLet me inspect the dataset structure.\nThe `metadata/trials.parquet` table is the right grain. Let me inspect its columns.\nLet me run diagnostics on the relevant columns before computing.\nClean structure: exactly one stimulus side per trial, `probabilityLeft` \u2208 {0.2, 0.5, 0.8} with no NaN. Now let me compute, with sanity checks on the correctness convention.\nDone. Source: `reports/datasets/bwm_behavior/2.0.0`, `metadata/trials.parquet` (295,920 trials, 459 sessions), resolved via `resolve_dataset_dir`.\n\n**Result** \u2014 34,697 zero-contrast trials, minus 247 no-go \u2192 **34,450 scored**, **59.0% correct**.\n\n| probabilityLeft | n | correct |\n|---|---|---|\n| 0.2 | 14,663 | 0.623 |\n| 0.5 | 4,585 | 0.503 |\n| 0.8 | 15,202 | 0.585 |\n| **all** | **34,450** | **0.590** |\n\n**Validation checks run:**\n- Exactly one stimulus side is non-NaN on every trial (0 rows with both or neither), so `contrastLeft==0 | contrastRight==0` cleanly identifies the zero-contrast set.\n- Sign convention confirmed empirically on 100%-contrast trials: `choice==+1` is correct iff stimulus was left, `choice==-1` iff right \u2014 so `feedbackType==1` really is \"matched the rewarded side.\" Easy-trial accuracy 96.8%, a sane reference.\n- `feedbackType==1` agrees perfectly with `rewardVolume>0` (242,514 / 0 disagreements).\n\n**Interpretation.** At 0% contrast there is no sensory evidence, so accuracy is driven entirely by whether the mouse exploits the block prior. The 0.5 block sits at chance (0.503) \u2014 exactly right, since the side is 50/50 and there is nothing to exploit. The biased blocks run well above chance because the rewarded side follows the block (stimulus is on the left 16.6% / 79.0% of zero-contrast trials in 0.2 / 0.8 blocks), and mice bias their guesses accordingly. This is the standard signature of prior integration, and the 0.5-block being at chance is a good null control that the effect isn't an artifact.\n\nTwo caveats worth flagging: the 0.2 vs 0.8 asymmetry (0.623 vs 0.585) indicates a net rightward choice bias, not symmetric prior use. And these are trial-pooled proportions, so long sessions weight more \u2014 equal-weighting sessions gives 0.585 overall, and restricting to `bwm_include` (n=20,732) gives 0.594, so the numbers are robust to both choices.\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5899,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6226,\n    \"0.5\": 0.5025,\n    \"0.8\": 0.5847\n  }\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 76.6,
+    "input_tokens": 16,
+    "output_tokens": 5646,
+    "cache_read_tokens": 188807,
+    "cache_write_tokens": 11994,
+    "cost_usd": 0.3567265,
+    "num_turns": 9,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5899,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6226,
+          "0.5": 0.5025,
+          "0.8": 0.5847
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll start by looking at the dataset configuration and structure.\n`metadata/trials.parquet` is the relevant table. Let me inspect its schema.\nClean structure: exactly one contrast side is non-NaN per trial. Now the computation.\n## Method\n\nFrom `metadata/trials.parquet` (295,920 trials, 459 sessions). Exactly one of `contrastLeft`/`contrastRight` is non-NaN on every trial, so presented contrast = `contrastLeft.fillna(contrastRight)`; zero-contrast = that value `== 0`. Dropped `choice == 0` (247 of 34,697 zero-contrast trials), scored `feedbackType == 1`.\n\n| probabilityLeft | n | proportion correct | SE |\n|---|---|---|---|\n| 0.2 | 14,663 | 0.6226 | 0.0040 |\n| 0.5 | 4,585 | 0.5025 | 0.0074 |\n| 0.8 | 15,202 | 0.5847 | 0.0040 |\n| **overall** | **34,450** | **0.5899** | 0.0026 |\n\n## Interpretation\n\nOn 0% contrast there is no perceptually correct side \u2014 the rewarded side is drawn from the block prior, so \"correct\" means the choice matched that draw. This is confirmed in the data: in the 0.2 block 83.4% of zero-contrast stimuli were assigned right, and 79.0% were assigned left in the 0.8 block.\n\nThat makes the three numbers read as a prior-exploitation check:\n- **0.5 block \u2192 0.5025**: chance, as it must be. A useful validation that the pipeline is correct.\n- **Biased blocks \u2192 0.58\u20130.62**: above chance only because mice bias choices toward the high-prior side (chose \"right\" 69.3% in the 0.2 block, \"left\" 64.3% in the 0.8 block; verified `choice == 1` \u2194 left-correct on 100%-contrast trials). This is under-matching \u2014 probability matching would give 0.68, always-high-prior 0.80.\n\nTwo caveats worth flagging:\n- The 0.2 block outperforms the 0.8 block (0.623 vs 0.585), a rightward asymmetry rather than a symmetric prior effect.\n- These are trial-pooled proportions, so large sessions dominate. The unweighted mean across the 459 sessions is 0.5855 (vs 0.5899), so the pooling choice barely matters. Restricting to `bwm_include == True` (20,732 trials) gives 0.5938 overall \u2014 also stable. I left both filters off since you didn't specify them.\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5899,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6226,\n    \"0.5\": 0.5025,\n    \"0.8\": 0.5847\n  }\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 70.0,
+    "input_tokens": 14,
+    "output_tokens": 4905,
+    "cache_read_tokens": 154523,
+    "cache_write_tokens": 9134,
+    "cost_usd": 0.2924445,
+    "num_turns": 8,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5899,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6226,
+          "0.5": 0.5025,
+          "0.8": 0.5847
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll start by looking at the dataset configuration and structure.\nComputed from `metadata/trials.parquet` (295,920 trials, 459 sessions, 139 subjects).\n\n**Trial selection** \u2014 zero-contrast defined as `(contrastLeft==0 & contrastRight.isna()) | (contrastRight==0 & contrastLeft.isna())`. This is unambiguous in this dataset: every trial has exactly one non-NaN side, and no trial has a 0 on one side with a non-NaN other side. 34,697 zero-contrast trials, minus 247 no-go (`choice==0`) \u2192 **34,450**. `feedbackType` is only \u00b11 (no NaNs), so correct = `feedbackType == 1`.\n\n| block `probabilityLeft` | n | proportion correct | 95% CI |\n|---|---|---|---|\n| 0.2 | 14,663 | 0.6226 | \u00b10.008 |\n| 0.5 | 4,585 | 0.5025 | \u00b10.015 |\n| 0.8 | 15,202 | 0.5847 | \u00b10.008 |\n| **overall** | **34,450** | **0.5899** | \u00b10.005 |\n\n**Interpretation / caveats**\n\n- On 0% contrast there is no sensory evidence, so the rewarded side is drawn by the task with p(left) = `probabilityLeft`. This metric therefore measures *prior exploitation*, not perceptual sensitivity.\n- The 0.5 blocks land at 0.5025 \u2014 statistically indistinguishable from chance, which is the expected value and a good sanity check on the selection logic.\n- Biased blocks sit ~0.58\u20130.62, i.e. mice follow the block prior but under-shoot it: they chose left on 64% of 0.8-block trials (prior 0.79) and 31% of 0.2-block trials (prior 0.17). The 0.2-vs-0.8 gap is fully accounted for by a mild overall rightward choice bias (left chosen 48.9% in unbiased blocks), not by asymmetric prior use.\n- These are trial-pooled proportions. Session-averaged (0.5855) and subject-averaged (0.5884) overalls are close, so the pooled number isn't driven by a few long sessions.\n- Restricting to `bwm_include == True` (20,732 trials) gives 0.5938 overall \u2014 same picture.\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5899,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6226,\n    \"0.5\": 0.5025,\n    \"0.8\": 0.5847\n  }\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 27.6,
+    "input_tokens": 10,
+    "output_tokens": 1981,
+    "cache_read_tokens": 104781,
+    "cache_write_tokens": 28858,
+    "cost_usd": 0.1573402,
+    "num_turns": 5,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "Based on the `pose_availability.parquet` table in the local `bwm_behavior` dataset (459 sessions total, 1144 rows), filtering to rows where `pose_present == True` and counting unique `eid` values:\n\n- 444 sessions have pose data on at least one camera (leftCamera, rightCamera, or bodyCamera).\n- Breaking down by camera and tracker (each session/camera pair has at most one tracker in this dataset):\n  - leftCamera: dlc=1, lightningPose=436\n  - rightCamera: lightningPose=432 (no dlc)\n  - bodyCamera: dlc=7, lightningPose=253\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\"dlc\": 1, \"lightningPose\": 436},\n    \"rightCamera\": {\"lightningPose\": 432},\n    \"bodyCamera\": {\"dlc\": 7, \"lightningPose\": 253}\n  }\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 21.5,
+    "input_tokens": 8,
+    "output_tokens": 1325,
+    "cache_read_tokens": 101315,
+    "cache_write_tokens": 5005,
+    "cost_usd": 0.054661,
+    "num_turns": 4,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "lightningPose": 436,
+            "dlc": 1
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "lightningPose": 253,
+            "dlc": 7
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I loaded `metadata/pose_availability.parquet` from the local `bwm_behavior` dataset (459 total sessions, 1144 rows across camera/session/tracker combos) and filtered to rows where `pose_present == True` (1129 rows, no duplicate eid+camera pairs among these).\n\n- **Sessions with pose on at least one camera:** 444 (out of 459 total sessions in the dataset).\n- **Per-camera, per-tracker session counts** (unique `eid` count where that camera+tracker combo has `pose_present == True`):\n  - `leftCamera`: lightningPose = 436, dlc = 1\n  - `rightCamera`: lightningPose = 432\n  - `bodyCamera`: lightningPose = 253, dlc = 7\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\"lightningPose\": 436, \"dlc\": 1},\n    \"rightCamera\": {\"lightningPose\": 432},\n    \"bodyCamera\": {\"lightningPose\": 253, \"dlc\": 7}\n  }\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 28.2,
+    "input_tokens": 18,
+    "output_tokens": 2663,
+    "cache_read_tokens": 270455,
+    "cache_write_tokens": 12969,
+    "cost_usd": 0.133745,
+    "num_turns": 10,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "lightningPose": 436,
+            "dlc": 1
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "lightningPose": 253,
+            "dlc": 7
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "Now let's load and analyze pose_availability.parquet.\nGood, this clarifies things: rows with `pose_present=True` all have a non-null tracker; the empty-camera rows are placeholder \"no pose at all\" rows with `pose_present=False`. Now compute the required stats.\nI resolved the dataset path, loaded `metadata/pose_availability.parquet` (primary key `eid, camera`), and computed the counts.\n\nKey details found:\n- The table has 1144 rows across 459 sessions, one row per (session, camera) pair actually present, plus 15 placeholder rows (empty camera, `pose_present=False`) for sessions with no pose data at all on any camera.\n- Filtering to `pose_present == True` gives 1129 camera-availability rows across 3 cameras (`leftCamera`, `rightCamera`, `bodyCamera`), each row carrying a non-null `tracker` (`lightningPose` or `dlc`).\n- Counted distinct `eid` per camera, and per (camera, tracker).\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\"lightningPose\": 436, \"dlc\": 1},\n    \"rightCamera\": {\"lightningPose\": 432},\n    \"bodyCamera\": {\"lightningPose\": 253, \"dlc\": 7}\n  }\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 41.6,
+    "input_tokens": 16,
+    "output_tokens": 3038,
+    "cache_read_tokens": 253243,
+    "cache_write_tokens": 24289,
+    "cost_usd": 0.1793646,
+    "num_turns": 8,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5898693759071117,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "passed": true
+      }
+    },
+    "reply": "Found it \u2014 `metadata/trials.parquet` has the raw trial fields.\nThis has exactly what's needed. Now compute the analysis.\nI loaded `metadata/trials.parquet` from the local `bwm_behavior` dataset (295,920 trials across all sessions), which contains `choice`, `feedbackType`, `probabilityLeft`, `contrastLeft`, and `contrastRight`.\n\n**Method:**\n1. Identified zero-contrast trials: either `contrastLeft == 0` (with `contrastRight` NaN) or `contrastRight == 0` (with `contrastLeft` NaN) \u2014 34,697 trials.\n2. Excluded no-go trials (`choice == 0`, 247 trials) \u2192 34,450 trials remain.\n3. Computed proportion correct as mean of `feedbackType == 1`, overall and grouped by `probabilityLeft` (values found: 0.2, 0.5, 0.8).\n\n**Results:**\n- Overall: 58.99% correct on zero-contrast trials.\n- At `probabilityLeft = 0.5` (no block bias), performance is near chance (~50.3%), as expected since the rewarded side is randomly assigned on zero-contrast trials.\n- At `probabilityLeft = 0.2` and `0.8` (biased blocks), mice score notably above chance (62.3% and 58.5%), consistent with them using the block's prior to bias their choices toward the more frequently rewarded side.\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5898693759071117,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6225874650480802,\n    \"0.5\": 0.5025081788440567,\n    \"0.8\": 0.5846599131693199\n  }\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 40.1,
+    "input_tokens": 12,
+    "output_tokens": 1935,
+    "cache_read_tokens": 156232,
+    "cache_write_tokens": 5633,
+    "cost_usd": 0.0742854,
+    "num_turns": 6,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5898693759071117,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.622587342454135,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693198
+        },
+        "passed": true
+      }
+    },
+    "reply": "Now I have what I need. Let me compute the answer.\nGood, the data is clean \u2014 every zero-contrast trial has exactly one side at 0% and the other NaN, confirming the definition holds cleanly.\n\n## Summary\n\nUsing `reports/datasets/bwm_behavior/2.0.0/metadata/trials.parquet`:\n\n- Identified zero-contrast trials as those where `contrastLeft == 0` or `contrastRight == 0` (verified the other side is always NaN in these rows).\n- Excluded no-go trials (`choice == 0`), leaving 34,450 trials.\n- Correct = `feedbackType == 1`.\n\n**Overall proportion correct:** ~0.590\n\n**By block `probabilityLeft`:**\n- 0.2: ~0.623 (n=14,663)\n- 0.5: ~0.503 (n=4,585)\n- 0.8: ~0.585 (n=15,202)\n\nThis matches the expected pattern: at zero contrast the stimulus gives no informative signal, so performance near the neutral block (0.5) is close to chance (~50%), while in biased blocks (0.2/0.8) mice lean on the prior and score well above chance.\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5898693759071117,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6225873424541351,\n    \"0.5\": 0.5025081788440567,\n    \"0.8\": 0.5846599131693198\n  }\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 18.3,
+    "input_tokens": 10,
+    "output_tokens": 1794,
+    "cache_read_tokens": 126615,
+    "cache_write_tokens": 4517,
+    "cost_usd": 0.062504,
+    "num_turns": 6,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5898693759071117,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6225873631738011,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693198
+        },
+        "passed": true
+      }
+    },
+    "reply": "This has exactly what's needed. Now let's compute the analysis.\nI loaded the local `bwm_behavior` dataset's `metadata/trials.parquet` (295,920 trials across sessions), filtered to zero-contrast trials (presented side contrast == 0, other side NaN), excluded no-go trials (`choice == 0`), and computed the fraction with `feedbackType == 1`.\n\nResults:\n- Zero-contrast, non-no-go trials: **34,450**\n- Overall proportion correct: **0.5899** (\u224859.0%)\n- By block `probabilityLeft`:\n  - 0.2: 0.6226 (n=14,663)\n  - 0.5: 0.5025 (n=4,585) \u2014 near chance, as expected since there's no informative bias at p=0.5\n  - 0.8: 0.5847 (n=15,202)\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5898693759071117,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6225873631738012,\n    \"0.5\": 0.5025081788440567,\n    \"0.8\": 0.5846599131693198\n  }\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 29.5,
+    "input_tokens": 42,
+    "output_tokens": 2554,
+    "cache_read_tokens": 93019,
+    "cache_write_tokens": 5153,
+    "cost_usd": 0.0335269,
+    "num_turns": 5,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "leftCamera": {
+            "lightningPose": 436,
+            "dlc": 1
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          },
+          "bodyCamera": {
+            "lightningPose": 253,
+            "dlc": 7
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll help you analyze the bwm_behavior dataset to find information about pose data across sessions and cameras. Let me start by exploring the dataset structure.\nBased on my analysis of the bwm_behavior dataset, I found the answer by loading the `pose_availability` table from the metadata. This table contains information about which sessions have pose data and tracks which camera and pose-tracking algorithm (tracker) produced the data.\n\n**Key findings:**\n\n- **444 sessions** have pose (video keypoint) data on at least one camera\n- **Breakdown by camera and tracker:**\n  - **leftCamera**: 436 sessions with lightningPose, 1 with dlc\n  - **rightCamera**: 432 sessions with lightningPose\n  - **bodyCamera**: 253 sessions with lightningPose, 7 with dlc\n\nThe results show that **lightningPose** is the dominant tracker, used in the vast majority of sessions, while **dlc** (DeepLabCut) is used in a small number of sessions, particularly for body camera data.\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"leftCamera\": {\n      \"lightningPose\": 436,\n      \"dlc\": 1\n    },\n    \"rightCamera\": {\n      \"lightningPose\": 432\n    },\n    \"bodyCamera\": {\n      \"lightningPose\": 253,\n      \"dlc\": 7\n    }\n  }\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 24.2,
+    "input_tokens": 42,
+    "output_tokens": 2373,
+    "cache_read_tokens": 118125,
+    "cache_write_tokens": 17828,
+    "cost_usd": 0.0604875,
+    "num_turns": 5,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll analyze the local bwm_behavior dataset to answer your questions about pose data availability by camera and tracker.\nBased on my analysis of the local bwm_behavior dataset, here are the results:\n\n## Analysis Summary\n\nI loaded and analyzed the `metadata/pose_availability.parquet` file, which contains pose availability information for all sessions across multiple cameras and trackers.\n\n**Key Findings:**\n- **444 sessions** have pose (video keypoint) data on at least one camera (where `pose_present=True`)\n- The data includes 4 cameras: `leftCamera`, `rightCamera`, `bodyCamera`, and an empty string (which indicates missing camera info)\n- Two tracking methods were used: `lightningPose` and `dlc`\n\n**Breakdown by camera and tracker:**\n- **leftCamera**: 436 sessions with lightningPose, 1 session with dlc\n- **rightCamera**: 432 sessions with lightningPose (no dlc)\n- **bodyCamera**: 253 sessions with lightningPose, 7 sessions with dlc\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"bodyCamera\": {\n      \"dlc\": 7,\n      \"lightningPose\": 253\n    },\n    \"leftCamera\": {\n      \"dlc\": 1,\n      \"lightningPose\": 436\n    },\n    \"rightCamera\": {\n      \"lightningPose\": 432\n    }\n  }\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-pose-coverage",
+    "passed": true,
+    "seconds": 24.8,
+    "input_tokens": 50,
+    "output_tokens": 2862,
+    "cache_read_tokens": 110938,
+    "cache_write_tokens": 4609,
+    "cost_usd": 0.0357888,
+    "num_turns": 6,
+    "checks": {
+      "n_sessions_with_any_pose": {
+        "expected": 444,
+        "actual": 444,
+        "passed": true
+      },
+      "sessions_by_camera_and_tracker": {
+        "expected": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "dlc": 0,
+            "lightningPose": 432
+          }
+        },
+        "actual": {
+          "bodyCamera": {
+            "dlc": 7,
+            "lightningPose": 253
+          },
+          "leftCamera": {
+            "dlc": 1,
+            "lightningPose": 436
+          },
+          "rightCamera": {
+            "lightningPose": 432
+          }
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll write and run Python code to analyze the bwm_behavior dataset for pose data availability.\nBased on my analysis of the bwm_behavior dataset, I've counted the sessions with pose data by filtering the `pose_availability` table for rows where `pose_present=True`.\n\nHere are the findings:\n\n- **444 sessions** have pose (video keypoint) data on at least one camera\n- The breakdown by camera and tracker shows:\n  - **bodyCamera**: 7 sessions with dlc, 253 with lightningPose\n  - **leftCamera**: 1 session with dlc, 436 with lightningPose  \n  - **rightCamera**: 432 sessions with lightningPose (no dlc data)\n\n```json\n{\n  \"n_sessions_with_any_pose\": 444,\n  \"sessions_by_camera_and_tracker\": {\n    \"bodyCamera\": {\n      \"dlc\": 7,\n      \"lightningPose\": 253\n    },\n    \"leftCamera\": {\n      \"dlc\": 1,\n      \"lightningPose\": 436\n    },\n    \"rightCamera\": {\n      \"lightningPose\": 432\n    }\n  }\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 46.7,
+    "input_tokens": 66,
+    "output_tokens": 5800,
+    "cache_read_tokens": 157342,
+    "cache_write_tokens": 8516,
+    "cost_usd": 0.0629752,
+    "num_turns": 8,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5898693759071117,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll help you analyze the bwm_behavior dataset to find the proportion of zero-contrast trials the mice got correct. Let me write and run a Python script to compute this.\nPerfect! I've analyzed the bwm_behavior dataset to compute the proportion of zero-contrast trials the mice got correct.\n\n## Summary\n\nI identified **zero-contrast trials** as trials where one stimulus side has 0% contrast and the other side is NaN (not presented). After excluding no-go trials (choice == 0), I found 34,450 zero-contrast trials.\n\n**Key findings:**\n\n- **Overall proportion correct**: 58.99% (20,321 out of 34,450 trials)\n- **By block prior probabilityLeft:**\n  - probabilityLeft = 0.2: 62.26% correct (9,129 / 14,663)\n  - probabilityLeft = 0.5: 50.25% correct (2,304 / 4,585)\n  - probabilityLeft = 0.8: 58.47% correct (8,888 / 15,202)\n\nInterestingly, mice performed best when the prior probability favored the left side less (probabilityLeft = 0.2), suggesting they use the block prior information even on zero-contrast trials.\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5898693759071117,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6225874650480802,\n    \"0.5\": 0.5025081788440567,\n    \"0.8\": 0.5846599131693199\n  }\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 34.3,
+    "input_tokens": 50,
+    "output_tokens": 3034,
+    "cache_read_tokens": 114408,
+    "cache_write_tokens": 6916,
+    "cost_usd": 0.0416458,
+    "num_turns": 6,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.5898693759071117,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll analyze the bwm_behavior dataset to calculate the proportion of zero-contrast trials that mice got correct. Let me write and run Python code to extract this information.\nExcellent! I've analyzed the bwm_behavior dataset for zero-contrast trials. Here's what I found:\n\n**Analysis Summary:**\n- **Total zero-contrast trials (excluding no-go):** 34,450 trials\n- **Overall proportion correct (feedbackType == 1):** 58.99%\n- **By probabilityLeft block:**\n  - **0.2:** 62.26% correct (9,129/14,663 trials)\n  - **0.5:** 50.25% correct (2,304/4,585 trials)  \n  - **0.8:** 58.47% correct (8,888/15,202 trials)\n\nThe results show that mice performed better when the prior probability of the stimulus being on the left was low (0.2) compared to when it was balanced (0.5), with intermediate performance when the probability was high (0.8).\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.5898693759071117,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.6225874650480802,\n    \"0.5\": 0.5025081788440567,\n    \"0.8\": 0.5846599131693199\n  }\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-zero-contrast-performance",
+    "passed": true,
+    "seconds": 33.5,
+    "input_tokens": 50,
+    "output_tokens": 3548,
+    "cache_read_tokens": 153290,
+    "cache_write_tokens": 19458,
+    "cost_usd": 0.073188,
+    "num_turns": 6,
+    "checks": {
+      "n_trials": {
+        "expected": 34450,
+        "actual": 34450,
+        "passed": true
+      },
+      "proportion_correct_overall": {
+        "expected": 0.5898693759071117,
+        "actual": 0.589869,
+        "passed": true
+      },
+      "proportion_correct_by_probability_left": {
+        "expected": {
+          "0.2": 0.6225874650480802,
+          "0.5": 0.5025081788440567,
+          "0.8": 0.5846599131693199
+        },
+        "actual": {
+          "0.2": 0.622587,
+          "0.5": 0.502508,
+          "0.8": 0.58466
+        },
+        "passed": true
+      }
+    },
+    "reply": "I'll help you analyze the bwm_behavior dataset. Let me write Python code to load the data and calculate the proportion of zero-contrast trials that the mice got correct.\nLet me check what files are available in the dataset directory:\nGood! I can see the structure. Let me load the trials metadata file:\nPerfect! Now let me analyze the zero-contrast trials:\nExcellent! Now let me calculate the proportion of correct zero-contrast trials:\nPerfect! I've analyzed the bwm_behavior dataset for zero-contrast trials. Here's the analysis:\n\n## Summary\n\nFor zero-contrast trials (where the presented stimulus had 0% contrast with the non-presented side being NaN):\n- **Total trials analyzed**: 34,450 (after excluding no-go trials where choice == 0)\n- **Overall proportion correct**: 58.99%\n- **By block prior probabilityLeft**:\n  - **0.2**: 62.26% correct (9,129 / 14,663 trials)\n  - **0.5**: 50.25% correct (2,304 / 4,585 trials)  \n  - **0.8**: 58.47% correct (8,888 / 15,202 trials)\n\nThe mice performed best on trials with probabilityLeft=0.2 (where the correct answer is biased toward the right side) and worst on trials with probabilityLeft=0.5 (where there's no prior bias).\n\n```json\n{\n  \"n_trials\": 34450,\n  \"proportion_correct_overall\": 0.589869,\n  \"proportion_correct_by_probability_left\": {\n    \"0.2\": 0.622587,\n    \"0.5\": 0.502508,\n    \"0.8\": 0.58466\n  }\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 46.1,
+    "input_tokens": 14,
+    "output_tokens": 3573,
+    "cache_read_tokens": 149880,
+    "cache_write_tokens": 15537,
+    "cost_usd": 0.32084199999999996,
+    "num_turns": 10,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "I'll start by looking at the dataset structure.\n`metadata/trials.parquet` looks like the canonical trial table. Let me check its schema.\n295,920 trials across 459 sessions. Now computing.\nComputed from `metadata/trials.parquet` in `bwm_behavior` 2.0.0 (295,920 trials, 459 sessions; row count matches the sum of `sessions.n_trials`).\n\n**Results**\n- **35,344 trials** have `firstMovement_times < stimOn_times` \u2014 **11.94%** of all 295,920 trials (pooled denominator).\n- **3,251 trials** have no first movement recorded (`firstMovement_times` is NaN).\n\n**Notes**\n- 488 trials also lack `stimOn_times` (249 of those lack both), so 292,430 trials have both fields; among just those, the pre-stimulus fraction is 12.09%.\n- These are mostly small leads: median lead 63 ms, 5th percentile of the signed `firstMovement \u2212 stimOn` difference at \u221275 ms, extreme \u22122.34 s. They occur in 458 of 459 sessions, so this is a general property of the wheel-movement detector (it can pick up ongoing movement carried over from the quiescence period), not a few broken sessions.\n- Sanity check: all 35,344 have `bwm_include == 0`, consistent with the standard BWM trial filter already excluding pre-stimulus-movement trials.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 43.3,
+    "input_tokens": 14,
+    "output_tokens": 3453,
+    "cache_read_tokens": 161949,
+    "cache_write_tokens": 17772,
+    "cost_usd": 0.34622149999999996,
+    "num_turns": 11,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.1194,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "I'll start by looking at the dataset structure.\n**35,344 trials** (11.94% of 295,920 pooled trials across 459 sessions) have `firstMovement_times` < `stimOn_times`; **3,251 trials** have no `firstMovement_times` recorded (NaN).\n\nSource: `reports/datasets/bwm_behavior/2.0.0/metadata/trials.parquet` (grain: eid \u00d7 trial_id).\n\nNotes:\n- Denominator is all 295,920 rows. Restricted to trials where both timestamps exist (292,430; 488 also lack `stimOn_times`), the fraction is 12.09%.\n- Lead times are mostly small: median 63 ms before stim onset, 91% under 100 ms, only 327 within 1 ms (float noise). This is consistent with the known wheel-based `firstMovement_times` detection picking up pre-stimulus/quiescence-break wheel motion rather than true anticipatory choices \u2014 treat these as unreliable RTs, not evidence of prediction.\n- All 196,574 `bwm_include == True` trials have a valid `firstMovement_times` at or after stim onset, so the BWM standard trial filter already removes every one of these cases.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.1194,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "opus-5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 32.4,
+    "input_tokens": 12,
+    "output_tokens": 2582,
+    "cache_read_tokens": 137808,
+    "cache_write_tokens": 10889,
+    "cost_usd": 0.24354099999999995,
+    "num_turns": 8,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.1194,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "I'll start by looking at the dataset structure.\n**Source:** `bwm_behavior` v2.0.0, `metadata/trials.parquet` \u2014 295,920 trials across 459 sessions.\n\n| Quantity | Count | Fraction of all 295,920 trials |\n|---|---|---|\n| `firstMovement_times` < `stimOn_times` | 35,344 | 0.1194 |\n| `firstMovement_times` > `stimOn_times` | 257,086 | 0.8688 |\n| No first movement recorded (`firstMovement_times` is NaN) | 3,251 | 0.0110 |\n| `stimOn_times` NaN (488, of which 249 also lack a first movement) | \u2014 | \u2014 |\n\nNotes:\n- NaN rows never satisfy the strict `<` comparison, so the 35,344 count is drawn from the 292,430 trials where both fields are finite; within that comparable subset the fraction is 0.1209.\n- The pre-stimulus movements are mostly small negative latencies \u2014 median \u221263 ms, quartiles \u2212104 ms / \u221230 ms, extreme \u22122.34 s \u2014 i.e. mainly movement initiated just before stimulus onset rather than grossly mistimed trials.\n- All 196,574 trials with `bwm_include == True` have a recorded first movement and none precede stimulus onset, so the BWM inclusion criteria already exclude this entire population.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.1194,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 21.3,
+    "input_tokens": 12,
+    "output_tokens": 2182,
+    "cache_read_tokens": 149638,
+    "cache_write_tokens": 11549,
+    "cost_usd": 0.0991046,
+    "num_turns": 7,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "This has exactly what's needed\u2014one row per trial, pooled across all sessions.\nNo duplicates, 459 sessions matches the sessions directory. Results confirmed.\n\nI loaded `metadata/trials.parquet` from the resolved `bwm_behavior` dataset (295,920 trials pooled across 459 sessions, one row per trial, no duplicates). I compared `firstMovement_times` to `stimOn_times` per trial, pooling all trials into a single numerator/denominator rather than averaging per-session fractions:\n\n- Trials with `firstMovement_times` earlier than `stimOn_times`: 35,344\n- Fraction of all 295,920 trials: 35,344 / 295,920 \u2248 0.1194\n- Trials with no `firstMovement_times` recorded (NaN): 3,251\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 49.6,
+    "input_tokens": 30,
+    "output_tokens": 3392,
+    "cache_read_tokens": 455854,
+    "cache_write_tokens": 12009,
+    "cost_usd": 0.17431880000000002,
+    "num_turns": 15,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "There's a `metadata/trials.parquet` table. Let's check it.\nFound the trials table with `stimOn_times` and `firstMovement_times`. Now compute the required stats.\nGood \u2014 `stimOn_times` NaNs don't affect the count since those comparisons resolve to False, so trials with unknown stim onset simply aren't counted as \"before\" (correct, since we can't determine the relation).\n\n## Results\n\nUsing the local `bwm_behavior` dataset's `metadata/trials.parquet` table (295,920 trials across 459 sessions), with columns `firstMovement_times` and `stimOn_times`:\n\n- **Trials with first wheel movement before stimulus onset**: 35,344\n- **Fraction of all trials**: 35,344 / 295,920 \u2248 0.1194 (about 11.9%)\n- **Trials with no first movement recorded** (`firstMovement_times` is NaN): 3,251\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "sonnet-5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 25.7,
+    "input_tokens": 14,
+    "output_tokens": 2134,
+    "cache_read_tokens": 198521,
+    "cache_write_tokens": 11635,
+    "cost_usd": 0.10874919999999999,
+    "num_turns": 9,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "Found it \u2014 trials table has both `firstMovement_times` and `stimOn_times`. Now compute the counts.\nI loaded `metadata/trials.parquet` from the resolved `bwm_behavior` dataset directory (`reports/datasets/bwm_behavior/2.0.0`), which contains one row per trial across all sessions with both `firstMovement_times` and `stimOn_times` columns (295,920 trials total).\n\n- **Movement before stimulus**: rows where `firstMovement_times` is not null, `stimOn_times` is not null, and `firstMovement_times < stimOn_times` \u2192 **35,344** trials, pooled across all sessions into a single denominator of 295,920 total trials \u2192 fraction \u2248 **0.1194** (11.94%).\n- **No movement recorded**: rows where `firstMovement_times` is null \u2192 **3,251** trials.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 2
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 21.6,
+    "input_tokens": 34,
+    "output_tokens": 2196,
+    "cache_read_tokens": 68082,
+    "cache_write_tokens": 7972,
+    "cost_usd": 0.0349082,
+    "num_turns": 4,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "I'll write and run Python code to analyze the bwm_behavior dataset and answer your questions.\nBased on my analysis of the local bwm_behavior dataset, here are the results:\n\n**Analysis Summary:**\n- **Total trials analyzed:** 295,920 (across all sessions)\n- **Trials with first movement before stimulus onset:** 35,344 trials where `firstMovement_times < stimOn_times`\n- **Fraction of all trials:** 0.1194 (\u224811.94%)\n- **Trials with no first movement recorded:** 3,251 trials with NaN/missing `firstMovement_times`\n\nThis means that approximately 1 in 8.4 trials had wheel movement initiated before the visual stimulus was presented, with the remaining trials showing either movement after stimulus or no recorded movement at all.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 0
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 21.8,
+    "input_tokens": 42,
+    "output_tokens": 1964,
+    "cache_read_tokens": 92954,
+    "cache_write_tokens": 4821,
+    "cost_usd": 0.0299314,
+    "num_turns": 5,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "Based on the local bwm_behavior dataset, I've analyzed all 295,920 trials across all sessions:\n\n**Key findings:**\n- **35,344 trials** have their first wheel movement before stimulus onset (firstMovement_times < stimOn_times)\n- This represents **11.94%** of all trials\n- **3,251 trials** have no first movement recorded at all (NaN values)\n\nThe analysis pooled all trials across all sessions into a single denominator as requested.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 1
+  },
+  {
+    "model": "haiku-4.5",
+    "question": "behaviour-premovement-trials",
+    "passed": true,
+    "seconds": 32.3,
+    "input_tokens": 50,
+    "output_tokens": 3489,
+    "cache_read_tokens": 114235,
+    "cache_write_tokens": 6209,
+    "cost_usd": 0.0424785,
+    "num_turns": 6,
+    "checks": {
+      "n_trials_movement_before_stimulus": {
+        "expected": 35344,
+        "actual": 35344,
+        "passed": true
+      },
+      "fraction_trials_movement_before_stimulus": {
+        "expected": 0.11943768586104353,
+        "actual": 0.11943768586104353,
+        "passed": true
+      },
+      "n_trials_no_movement_recorded": {
+        "expected": 3251,
+        "actual": 3251,
+        "passed": true
+      }
+    },
+    "reply": "I'll write and run Python code to analyze the bwm_behavior dataset and answer your questions.\nPerfect! I've analyzed the bwm_behavior dataset. Here are the results:\n\n## Analysis Summary\n\nAcross all 295,920 trials in the bwm_behavior dataset:\n\n- **35,344 trials** have their first wheel movement before stimulus onset (firstMovement_times < stimOn_times)\n- This represents **11.94%** of all trials when pooled together\n- **3,251 trials** have no first movement recorded at all (firstMovement_times is NaN)\n\nThe remaining 257,325 trials either have movement at or after stimulus onset, or are accounted for in the movement null values.\n\n```json\n{\n  \"n_trials_movement_before_stimulus\": 35344,\n  \"fraction_trials_movement_before_stimulus\": 0.11943768586104353,\n  \"n_trials_no_movement_recorded\": 3251\n}\n```",
+    "repeat": 2
+  }
+]

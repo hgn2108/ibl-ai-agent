@@ -1,0 +1,51 @@
+[
+  {
+    "id": "behaviour-pose-coverage",
+    "modality": "behaviour",
+    "topic": "video",
+    "question": "Using the local bwm_behavior dataset, how many sessions have pose (video keypoint) data on at least one camera, and how many sessions have pose data per camera broken down by which tracker produced it? Count a session as having pose on a camera when its pose_availability row for that camera has pose_present True.",
+    "answer_schema": {
+      "n_sessions_with_any_pose": "int",
+      "sessions_by_camera_and_tracker": "dict mapping camera name -> {tracker name -> int}"
+    },
+    "ground_truth_key": "q1_pose_coverage",
+    "checks": [
+      {"path": "n_sessions_with_any_pose", "tolerance": 0},
+      {"path": "sessions_by_camera_and_tracker", "tolerance": 0}
+    ]
+  },
+  {
+    "id": "behaviour-zero-contrast-performance",
+    "modality": "behaviour",
+    "topic": "trials",
+    "question": "Using the local bwm_behavior dataset, what proportion of zero-contrast trials did the mice get correct, overall and split by the block prior probabilityLeft? A zero-contrast trial is one where the presented stimulus had 0% contrast (the non-presented side is NaN). Exclude no-go trials (choice == 0). Score a trial correct when feedbackType == 1.",
+    "answer_schema": {
+      "n_trials": "int",
+      "proportion_correct_overall": "float",
+      "proportion_correct_by_probability_left": "dict mapping '0.2'/'0.5'/'0.8' -> float"
+    },
+    "ground_truth_key": "q2_zero_contrast_performance",
+    "checks": [
+      {"path": "n_trials", "tolerance": 0},
+      {"path": "proportion_correct_overall", "tolerance": 0.005},
+      {"path": "proportion_correct_by_probability_left", "tolerance": 0.005}
+    ]
+  },
+  {
+    "id": "behaviour-premovement-trials",
+    "modality": "behaviour",
+    "topic": "trials+wheel",
+    "question": "Using the local bwm_behavior dataset, across all sessions, how many trials have their first wheel movement before stimulus onset (firstMovement_times earlier than stimOn_times), and what fraction of all trials is that? Pool all trials into one denominator rather than averaging per-session fractions. Also report how many trials have no first movement recorded at all.",
+    "answer_schema": {
+      "n_trials_movement_before_stimulus": "int",
+      "fraction_trials_movement_before_stimulus": "float",
+      "n_trials_no_movement_recorded": "int"
+    },
+    "ground_truth_key": "q3_premovement_trials",
+    "checks": [
+      {"path": "n_trials_movement_before_stimulus", "tolerance": 0},
+      {"path": "fraction_trials_movement_before_stimulus", "tolerance": 0.005},
+      {"path": "n_trials_no_movement_recorded", "tolerance": 0}
+    ]
+  }
+]

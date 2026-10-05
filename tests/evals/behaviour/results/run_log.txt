@@ -1,0 +1,48 @@
+opus-5     behaviour-pose-coverage            r0 PASS   35.7s  $0.3593
+opus-5     behaviour-pose-coverage            r1 PASS   42.8s  $0.2118
+opus-5     behaviour-pose-coverage            r2 PASS   32.8s  $0.2193
+opus-5     behaviour-zero-contrast-performance r0 PASS   73.2s  $0.4255
+opus-5     behaviour-zero-contrast-performance r1 PASS   76.6s  $0.3567
+opus-5     behaviour-zero-contrast-performance r2 PASS   70.0s  $0.2924
+opus-5     behaviour-premovement-trials       r0 PASS   36.5s  $0.3528
+opus-5     behaviour-premovement-trials       r1 PASS   41.2s  $0.3003
+opus-5     behaviour-premovement-trials       r2 PASS   32.5s  $0.2827
+sonnet-5   behaviour-pose-coverage            r0 PASS   27.6s  $0.1573
+sonnet-5   behaviour-pose-coverage            r1 PASS   21.5s  $0.0547
+sonnet-5   behaviour-pose-coverage            r2 PASS   28.2s  $0.1337
+sonnet-5   behaviour-zero-contrast-performance r0 PASS   41.6s  $0.1794
+sonnet-5   behaviour-zero-contrast-performance r1 PASS   40.1s  $0.0743
+sonnet-5   behaviour-zero-contrast-performance r2 PASS   18.3s  $0.0625
+sonnet-5   behaviour-premovement-trials       r0 PASS  203.3s  $0.2970
+sonnet-5   behaviour-premovement-trials       r1 PASS   26.6s  $0.1311
+sonnet-5   behaviour-premovement-trials       r2 PASS   30.6s  $0.0993
+haiku-4.5  behaviour-pose-coverage            r0 PASS   29.5s  $0.0335
+haiku-4.5  behaviour-pose-coverage            r1 PASS   24.2s  $0.0605
+haiku-4.5  behaviour-pose-coverage            r2 PASS   24.8s  $0.0358
+haiku-4.5  behaviour-zero-contrast-performance r0 PASS   46.7s  $0.0630
+haiku-4.5  behaviour-zero-contrast-performance r1 PASS   34.3s  $0.0416
+haiku-4.5  behaviour-zero-contrast-performance r2 PASS   33.5s  $0.0732
+haiku-4.5  behaviour-premovement-trials       r0 PASS   65.9s  $0.0876
+haiku-4.5  behaviour-premovement-trials       r1 PASS   34.4s  $0.0541
+haiku-4.5  behaviour-premovement-trials       r2 PASS   72.7s  $0.1192
+
+# Behaviour eval grid
+
+3 repeat(s) per cell, 3 models x 3 questions
+
+## Pass rate (%)
+
+| model     |   behaviour-pose-coverage |   behaviour-premovement-trials |   behaviour-zero-contrast-performance |   overall % |
+|:----------|--------------------------:|-------------------------------:|--------------------------------------:|------------:|
+| haiku-4.5 |                       100 |                            100 |                                   100 |         100 |
+| opus-5    |                       100 |                            100 |                                   100 |         100 |
+| sonnet-5  |                       100 |                            100 |                                   100 |         100 |
+
+## Token usage and cost (summed over all runs)
+
+| model     |   input_tokens |   output_tokens |   cache_read_tokens |   cost_usd |   median_seconds |
+|:----------|---------------:|----------------:|--------------------:|-----------:|-----------------:|
+| haiku-4.5 |            610 |           37629 |         1.61432e+06 |     0.5685 |             34.3 |
+| opus-5    |            126 |           32027 |         1.4033e+06  |     2.8009 |             41.2 |
+| sonnet-5  |            146 |           22155 |         2.15243e+06 |     1.1893 |             28.2 |
+

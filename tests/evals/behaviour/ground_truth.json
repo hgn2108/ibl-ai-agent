@@ -1,0 +1,46 @@
+{
+  "dataset": "bwm_behavior 2.0.0",
+  "q1_pose_coverage": {
+    "n_sessions_total": 459,
+    "n_sessions_with_any_pose": 444,
+    "sessions_by_camera_and_tracker": {
+      "bodyCamera": {
+        "dlc": 7,
+        "lightningPose": 253
+      },
+      "leftCamera": {
+        "dlc": 1,
+        "lightningPose": 436
+      },
+      "rightCamera": {
+        "dlc": 0,
+        "lightningPose": 432
+      }
+    },
+    "n_sessions_by_camera": {
+      "bodyCamera": 260,
+      "leftCamera": 437,
+      "rightCamera": 432
+    }
+  },
+  "q2_zero_contrast_performance": {
+    "n_trials": 34450,
+    "proportion_correct_overall": 0.5898693759071117,
+    "proportion_correct_by_probability_left": {
+      "0.2": 0.6225874650480802,
+      "0.5": 0.5025081788440567,
+      "0.8": 0.5846599131693199
+    },
+    "n_trials_by_probability_left": {
+      "0.8": 15202,
+      "0.2": 14663,
+      "0.5": 4585
+    }
+  },
+  "q3_premovement_trials": {
+    "n_trials_total": 295920,
+    "n_trials_movement_before_stimulus": 35344,
+    "fraction_trials_movement_before_stimulus": 0.11943768586104353,
+    "n_trials_no_movement_recorded": 3251
+  }
+}
