@@ -17,6 +17,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+_SCRATCH_HOME = str(Path(tempfile.gettempdir()) / "ibl-eval-home")
+
 TIMEOUT_S = 180
 MAX_OUTPUT_CHARS = 10_000
 
@@ -62,9 +64,12 @@ def run_python(code, cwd):
         env={
             "UV_CACHE_DIR": ".uv-cache",
             "PATH": "/usr/bin:/bin",
-            "HOME": str(cwd),
-            # keep matplotlib's config cache out of the repo root
-            "MPLCONFIGDIR": str(Path(tempfile.gettempdir()) / "ibl-eval-mpl"),
+            # HOME outside the repo: model code that touches ONE or matplotlib
+            # writes caches and downloads under HOME, and those belong in temp
+            # rather than in the working tree (one run fetched 39 MB of ONE
+            # data into the repo root before this was set).
+            "HOME": _SCRATCH_HOME,
+            "MPLCONFIGDIR": _SCRATCH_HOME,
         },
     )
     output = (completed.stdout + completed.stderr).strip() or "(no output)"
