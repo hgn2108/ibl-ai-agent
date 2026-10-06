@@ -14,6 +14,8 @@ is acceptable, and never against an untrusted question set.
 from __future__ import annotations
 
 import subprocess
+import tempfile
+from pathlib import Path
 
 TIMEOUT_S = 180
 MAX_OUTPUT_CHARS = 10_000
@@ -57,7 +59,13 @@ def run_python(code, cwd):
         capture_output=True,
         text=True,
         timeout=TIMEOUT_S,
-        env={"UV_CACHE_DIR": ".uv-cache", "PATH": "/usr/bin:/bin", "HOME": str(cwd)},
+        env={
+            "UV_CACHE_DIR": ".uv-cache",
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(cwd),
+            # keep matplotlib's config cache out of the repo root
+            "MPLCONFIGDIR": str(Path(tempfile.gettempdir()) / "ibl-eval-mpl"),
+        },
     )
     output = (completed.stdout + completed.stderr).strip() or "(no output)"
     if len(output) > MAX_OUTPUT_CHARS:
