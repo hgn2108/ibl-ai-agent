@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from .base import ChatCompletionActor, RunResult, Usage
+from .base import ChatCompletionActor, Usage
 
 BASE_URL = "https://lightning.ai/api/v1/"
 

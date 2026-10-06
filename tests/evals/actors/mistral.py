@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 
-from .base import ChatCompletionActor, RunResult, Usage
+from .base import ChatCompletionActor, Usage
 
 
 class MistralActor(ChatCompletionActor):
