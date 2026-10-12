@@ -10,7 +10,7 @@ description: Use this skill to write a final report for an IBL scientific analys
 
 ## Output format
 
-Prepare a scientific report using Quarto. Resolve the project directory using `AGENTS.md`; save source as `report.qmd` and render HTML to `report/report.html`, with only required web assets alongside the HTML. PDF is an optional additional output at `report.pdf`; for an explicit PDF-only request, omit HTML and the Pages publishing offer. Keep source, PDF, and private notes outside `report/`, because the publisher collects web files recursively from that directory.
+Prepare a scientific report using Quarto. Resolve the project directory using `AGENTS.md`; save source as `report.qmd` and render HTML to `report/report.html`, with only required web assets alongside the HTML. PDF is an optional additional output at `report.pdf`; for an explicit PDF-only request, omit HTML and the Pages publishing offer. Render a single self-contained HTML file (`embed-resources: true` in the YAML header) so reports can be hosted, versioned, and ingested as one file. Use a lowercase-hyphen `<project_slug>` (e.g. `spike-width-cortical-depth`) so it is URL-safe. Also write `report/manifest.json` with `title`, `abstract`, `date`, `tags`, and `data_version`, so a future report index can list the report without parsing the HTML; it is public, so the privacy rules below apply to it. Keep source, PDF, and private notes outside `report/`, because the publisher collects web files recursively from that directory.
 
 The report should have the following sections:
 
