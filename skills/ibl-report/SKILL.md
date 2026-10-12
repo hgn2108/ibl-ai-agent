@@ -19,7 +19,7 @@ For HTML reports, render a single self-contained HTML file (`embed-resources: tr
 | `title` | Nonempty string matching the report title. |
 | `abstract` | Nonempty plain-text string summarizing the question and main findings. |
 | `date` | String in `YYYY-MM-DD` format: the report's last substantive revision date. |
-| `tags` | Array of unique, nonempty topic strings; use `[]` if none apply. |
+| `tags` | Array of unique, nonempty topic keywords (3-6 recommended), shown on the report index; also set `keywords:` in the YAML header. Use `[]` if none apply. |
 | `data_version` | Object mapping dataset names to version strings (e.g. `{"bwm_ephys": "1.2.0", "bwm_behavior": "1.0.0"}`). Include every dataset used; use `null` for an unknown version and explain it in the report's methods. Use `{}` if no dataset was used. Never put local paths or credentials here. |
 
 Keep only the rendered HTML, public manifest, and required web assets in `report/`. Keep source, PDF, and private notes outside it, because the publisher collects web files recursively from that directory.
