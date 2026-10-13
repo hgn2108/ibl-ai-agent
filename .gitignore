@@ -27,4 +27,5 @@ questions/projects/**/_tmp/
 projects/*
 data/*
 pytest.ini
-
+tests/evals/.env.local
+tests/evals/models.json

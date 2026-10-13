@@ -24,6 +24,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+evals = [
+  "python-dotenv>=1.0",
+  "pytest-xdist>=3.5",
+]
 ibl = [
   "ONE-api>=3.0",
   "ibllib>=3.3",
