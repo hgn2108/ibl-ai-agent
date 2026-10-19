@@ -59,10 +59,7 @@ class ScientificReasoningMetric(BaseMetric):
         self.reason = judgment.reason
 
         if judgment.unsupported_claims:
-            self.reason += (
-                "; Unsupported claims: "
-                + "; ".join(judgment.unsupported_claims)
-            )
+            self.reason += "; Unsupported claims: " + "; ".join(judgment.unsupported_claims)
 
         self.success = self.is_successful()
         return self.score
