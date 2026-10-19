@@ -11,6 +11,8 @@ import re
 from deepeval.metrics import BaseMetric, ToolCorrectnessMetric
 from deepeval.test_case import LLMTestCase
 
+from tests.evals.scientific_reasoning_metric import ScientificReasoningMetric
+
 
 class NeuronCountMetric(BaseMetric):
     """Checks that all expected neuron counts appear in the answer.
@@ -30,7 +32,12 @@ class NeuronCountMetric(BaseMetric):
 
     def measure(self, test_case: LLMTestCase, *args, **kwargs) -> float:
         clean = re.sub(r"(\d),(\d)", r"\1\2", test_case.actual_output)
-        missing = [str(n) for counts in self.expected.values() for n in counts if str(n) not in clean]
+        missing = [
+            str(n)
+            for counts in self.expected.values()
+            for n in counts
+            if str(n) not in clean
+        ]
         self.score = 0.0 if missing else 1.0
         output_preview = test_case.actual_output.replace("\n", " | ")[:200]
         self.reason = (
@@ -47,7 +54,11 @@ class NeuronCountMetric(BaseMetric):
         return self.measure(test_case)
 
 
-def build_metrics(checks: list[dict], evaluator=None) -> list[BaseMetric]:
+def build_metrics(
+    checks: list[dict],
+    evaluator=None,
+    scientific_judge=None,
+) -> list[BaseMetric]:
     """Instantiate metrics from question JSON ``checks`` entries.
 
     Parameters
@@ -56,23 +67,51 @@ def build_metrics(checks: list[dict], evaluator=None) -> list[BaseMetric]:
         List of check dicts, each with a ``"metric"`` key and optional config.
     evaluator
         Optional ``DeepEvalBaseLLM`` instance used as the judge model for
-        LLM-based metrics (e.g. ``ToolCorrectnessMetric``).  When ``None``,
+        LLM-based metrics (e.g. ``ToolCorrectnessMetric``). When ``None``,
         deepeval falls back to its default model, which requires OPENAI_API_KEY.
+    scientific_judge
+        Optional callable used by ``ScientificReasoningMetric``.
+        It must accept question, answer, and evidence, and return a judgment
+        containing normalized_score, reason, and unsupported_claims.
 
     Returns
     -------
     list[BaseMetric]
+        Instantiated evaluation metrics.
     """
     result: list[BaseMetric] = []
+
     for check in checks:
         name = check["metric"]
+
         if name == "NeuronCountMetric":
-            result.append(NeuronCountMetric(expected=check["expected"]))
+            result.append(
+                NeuronCountMetric(expected=check["expected"])
+            )
+
         elif name == "ToolCorrectnessMetric":
-            result.append(ToolCorrectnessMetric(
-                threshold=check.get("threshold", 1.0),
-                model=evaluator,
-            ))
+            result.append(
+                ToolCorrectnessMetric(
+                    threshold=check.get("threshold", 1.0),
+                    model=evaluator,
+                )
+            )
+
+        elif name == "ScientificReasoningMetric":
+            if scientific_judge is None:
+                raise ValueError(
+                    "ScientificReasoningMetric requires scientific_judge"
+                )
+
+            result.append(
+                ScientificReasoningMetric(
+                    evidence=check["evidence"],
+                    judge=scientific_judge,
+                    threshold=check.get("threshold", 1.0),
+                )
+            )
+
         else:
             raise ValueError(f"Unknown metric: {name!r}")
+
     return result
