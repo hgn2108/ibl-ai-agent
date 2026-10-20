@@ -1,0 +1,50 @@
+"""Question files and the prompts built from them. Stdlib only, so offline tests can use it."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from tests.evals.checks import answer_instructions
+from tests.evals.skill_router import get_skill_files
+
+_DIR = Path(__file__).parent
+REPO_ROOT = _DIR.parents[1]
+
+
+def load_questions(task: str) -> list[dict]:
+    """Return every question of one ``task`` type from ``questions/*.json``."""
+    questions = []
+    for path in sorted(_DIR.joinpath("questions").glob("*.json")):
+        questions += [q for q in json.loads(path.read_text()) if q.get("task") == task]
+    return questions
+
+
+def prompt_for(question: dict) -> str:
+    """Build a data-loading prompt: reference material, the question, how to answer.
+
+    Each question names ``packets`` (the Required Load Packets of AGENTS.md).
+    Without them a model must guess repo conventions, such as which region
+    mapping or what counts as a good unit, so the eval would measure guesswork
+    rather than data loading. The answer format is fixed so that a failure
+    reflects the data work, not a guess at what shape we wanted.
+
+    Parameters
+    ----------
+    question : dict
+        A question entry with ``question``, ``expected`` and optional ``packets``.
+
+    Returns
+    -------
+    str
+    """
+    files = get_skill_files(*question.get("packets", []))
+    context = "\n\n".join(f"--- {path.name} ---\n{path.read_text()}" for path in files)
+    preamble = f"Use the following reference materials.\n\n{context}\n\n" if context else ""
+    return (
+        f"{preamble}Question: {question['question']}\n\n"
+        "Compute the answer from the local IBL datasets by running Python. Every Python "
+        "call is a fresh process, so variables and imports do not persist: write each call "
+        "as a complete script. "
+        f"{answer_instructions(question['expected'])}"
+    )
