@@ -1,0 +1,8 @@
+[
+  {
+    "id": "skill-acg-cortical-depth",
+    "question": "Are single-cell autocorrelograms wider or narrower in superficial or deep cortical layers?",
+    "task": "skill_selection",
+    "expected_skills": ["ibl-load", "ibl-anatomy"]
+  }
+]

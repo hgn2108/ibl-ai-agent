@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from tests.evals.checks import answer_instructions
@@ -48,3 +49,43 @@ def prompt_for(question: dict) -> str:
         "as a complete script. "
         f"{answer_instructions(question['expected'])}"
     )
+
+
+def skill_descriptions() -> str:
+    """Return one ``- <skill>: <description>`` line per skill in ``skills/``.
+
+    Only repo skills are listed, never ``~/.claude/skills``: the eval must not
+    depend on what happens to be installed on the machine running it.
+    """
+    lines = []
+    for skill_md in sorted(REPO_ROOT.joinpath("skills").glob("*/SKILL.md")):
+        for line in skill_md.read_text(encoding="utf-8").splitlines():
+            if line.startswith("description:"):
+                lines.append(f"- {skill_md.parent.name}: {line.removeprefix('description:')}")
+                break
+    return "\n".join(lines)
+
+
+def skill_prompt_for(question: dict) -> str:
+    """Build the skill-selection prompt: AGENTS.md, the skill list, the question."""
+    return (
+        f"{REPO_ROOT.joinpath('AGENTS.md').read_text(encoding='utf-8')}\n\n"
+        f"Available skills:\n{skill_descriptions()}\n\n"
+        f"Question: {question['question']}\n\n"
+        "Think briefly about which skills this question needs. Then end your reply with a "
+        "line `Skills:` followed by the needed skill names, exactly as written in the list "
+        "above (not file paths), one per line."
+    )
+
+
+_SKILLS_LINE = re.compile(r"(?im)^\W*skills\W*:\W*$")
+
+
+def named_skills(reply: str) -> set[str]:
+    """Return the skill names listed after the last ``Skills:`` line of a reply.
+
+    One name per line; list markers and backticks are ignored. A reply without a
+    ``Skills:`` line names nothing: following the answer format is part of the task.
+    """
+    tail = _SKILLS_LINE.split(reply)[-1] if _SKILLS_LINE.search(reply) else ""
+    return {line.strip().lstrip("-* ").strip("`") for line in tail.splitlines()} - {""}
