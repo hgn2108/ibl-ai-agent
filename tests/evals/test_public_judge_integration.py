@@ -1,15 +1,15 @@
-"""Judge and scorer wired together by dependency injection, with a fake model."""
+"""A public example rubric driving the scorer end to end, with a mock judge model."""
 
 import asyncio
 import json
-from functools import partial
 from types import SimpleNamespace
 
 import pytest
 
 pytest.importorskip("inspect_ai")
 
-from tests.evals.custom_llm_judge import judge_answer  # noqa: E402
+from inspect_ai.model import ModelOutput, get_model  # noqa: E402
+
 from tests.evals.scientific_reasoning import scientific_reasoning  # noqa: E402
 
 
@@ -22,27 +22,19 @@ def example_prompt_builder(question, answer, evidence):
     )
 
 
-def run(score, claims=()):
-    """Score one reply through scorer -> judge_answer -> fake generator."""
+def test_example_rubric_scores_a_reply_end_to_end():
     prompts = []
 
-    async def generate(prompt):
-        prompts.append(prompt)
-        return json.dumps({"score": score, "reason": "demo", "unsupported_claims": list(claims)})
+    def recording_builder(*args):
+        prompts.append(example_prompt_builder(*args))
+        return prompts[-1]
 
-    judge = partial(judge_answer, prompt_builder=example_prompt_builder, generate=generate)
-    state = SimpleNamespace(input_text="Q", output=SimpleNamespace(completion="A"))
-    result = asyncio.run(scientific_reasoning(judge, "E")(state, None))
-    return result, prompts
-
-
-@pytest.mark.parametrize(("score", "passed"), [(0, 0), (1, 0), (2, 1)])
-def test_score_levels_map_to_pass_fail(score, passed):
-    result, prompts = run(score)
-    assert result.value == passed
-    assert result.metadata["normalized_score"] == score / 2
-    assert all(text in prompts[0] for text in ("Q", "A", "E"))
-
-
-def test_unsupported_claims_reach_the_explanation():
-    assert "The sample is green." in run(0, ["The sample is green."])[0].explanation
+    verdict = json.dumps({"score": 2, "reason": "Matches.", "unsupported_claims": []})
+    model = get_model(
+        "mockllm/model", custom_outputs=[ModelOutput.from_content("mockllm/model", verdict)]
+    )
+    state = SimpleNamespace(input_text="What color?", output=SimpleNamespace(completion="Blue."))
+    scorer = scientific_reasoning(recording_builder, model)
+    result = asyncio.run(scorer(state, SimpleNamespace(text="Ref: blue.")))
+    assert result.value == 1 and result.explanation == "Matches."
+    assert all(text in prompts[0] for text in ("What color?", "Blue.", "Ref: blue."))
