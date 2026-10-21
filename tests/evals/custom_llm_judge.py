@@ -1,117 +1,60 @@
-"""Reusable LLM judge with externally supplied evaluation instructions."""
+"""LLM judge that scores an answer 0-2 against evidence, with a caller-supplied rubric."""
 
 from __future__ import annotations
 
-import json
-import subprocess
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
+from typing import Literal
+
+from inspect_ai.model import get_model
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
-@dataclass(frozen=True)
-class Judgment:
-    """Validated judge result with a normalized score."""
+class Judgment(BaseModel):
+    """Judge result; any extra, missing or mistyped field is rejected."""
 
-    score: int
-    reason: str
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    score: Literal[0, 1, 2]
+    reason: str = Field(min_length=1)
     unsupported_claims: list[str]
 
     @property
     def normalized_score(self) -> float:
-        """Return the score normalized to [0, 1]."""
-        return self.score / 2.0
+        """Score scaled to [0, 1]."""
+        return self.score / 2
 
 
-def parse_judgment(raw: str) -> Judgment:
-    """Parse and strictly validate a JSON judge response."""
-    try:
-        obj = json.loads(raw.strip())
-    except (ValueError, TypeError, AttributeError) as exc:
-        raise ValueError("Judge did not return valid JSON") from exc
-
-    if not isinstance(obj, dict) or set(obj) != {
-        "score",
-        "reason",
-        "unsupported_claims",
-    }:
-        raise ValueError("Judge JSON has invalid fields")
-
-    if type(obj["score"]) is not int or obj["score"] not in (0, 1, 2):
-        raise ValueError("Judge score must be integer 0, 1, or 2")
-
-    if not isinstance(obj["reason"], str) or not obj["reason"].strip():
-        raise ValueError("Judge reason must be nonempty text")
-
-    claims = obj["unsupported_claims"]
-    if not isinstance(claims, list) or not all(
-        isinstance(x, str) and bool(x.strip()) for x in claims
-    ):
-        raise ValueError("Unsupported claims must be nonempty strings")
-
-    return Judgment(
-        score=obj["score"],
-        reason=obj["reason"],
-        unsupported_claims=claims,
-    )
-
-
-def claude_cli_generate(
-    prompt: str,
-    model: str = "sonnet",
-    timeout: int = 120,
-) -> str:
-    """Generate a response using Claude CLI with tools disabled."""
-    result = subprocess.run(
-        [
-            "claude",
-            "-p",
-            prompt,
-            "--model",
-            model,
-            "--tools",
-            "",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=timeout,
-    )
-    return result.stdout
-
-
-def judge_answer(
+async def judge_answer(
     question: str,
     answer: str,
     evidence: str,
     prompt_builder: Callable[[str, str, str], str],
-    generate: Callable[[str], str] | None = None,
-    model: str = "sonnet",
+    generate: Callable[[str], Awaitable[str]] | None = None,
+    model: str = "anthropic/claude-sonnet-5-5",
 ) -> Judgment:
-    """Judge an answer using a configurable Claude model.
+    """Judge ``answer`` against ``evidence``, retrying once on a malformed reply.
 
-    Retry once for malformed responses. A custom generator
-    can be supplied for testing or other model providers.
+    Parameters
+    ----------
+    prompt_builder
+        ``(question, answer, evidence) -> prompt``; holds the (private) rubric and
+        must ask for a JSON object with ``score``, ``reason`` and ``unsupported_claims``.
+    generate
+        Async ``prompt -> reply text``. Defaults to an Inspect ``model`` call.
+    model
+        Inspect model id of the judge, used when ``generate`` is None.
     """
     if not evidence.strip():
         raise ValueError("Evidence must not be empty")
-
-    prompt = prompt_builder(question, answer, evidence)
-
     if generate is None:
 
-        def generator(prompt: str) -> str:
-            return claude_cli_generate(prompt, model=model)
+        async def generate(prompt: str) -> str:
+            return (await get_model(model).generate(prompt)).completion
 
-    else:
-        generator = generate
-
+    prompt = prompt_builder(question, answer, evidence)
     for attempt in range(2):
-        response = generator(prompt)
-
         try:
-            return parse_judgment(response)
-        except ValueError as exc:
-            if attempt == 1:
+            return Judgment.model_validate_json(await generate(prompt))
+        except ValidationError as exc:
+            if attempt:
                 raise ValueError("Judge returned an invalid response after 2 attempts") from exc
-
-    raise RuntimeError("Unreachable judge state")

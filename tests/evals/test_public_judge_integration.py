@@ -1,137 +1,48 @@
-"""Offline integration tests for the custom judge and DeepEval metric."""
+"""Judge and scorer wired together by dependency injection, with a fake model."""
 
-from __future__ import annotations
-
+import asyncio
 import json
+from functools import partial
+from types import SimpleNamespace
 
 import pytest
-from deepeval.test_case import LLMTestCase
 
-from tests.evals.custom_llm_judge import judge_answer
-from tests.evals.scientific_reasoning_metric import ScientificReasoningMetric
+pytest.importorskip("inspect_ai")
+
+from tests.evals.custom_llm_judge import judge_answer  # noqa: E402
+from tests.evals.scientific_reasoning import scientific_reasoning  # noqa: E402
 
 
-def example_prompt_builder(
-    question: str,
-    answer: str,
-    evidence: str,
-) -> str:
-    """Build a public demonstration prompt, not the private rubric."""
+def example_prompt_builder(question, answer, evidence):
+    """Public demonstration prompt, not the private rubric."""
     return (
-        "This is a demonstration of a configurable evaluation prompt.\n"
-        "Assign score 2 when the answer agrees with the evidence, "
-        "score 1 for partial agreement, and score 0 for disagreement.\n"
-        "Return JSON with score, reason, and unsupported_claims.\n"
-        f"Question: {question}\n"
-        f"Evidence: {evidence}\n"
-        f"Answer: {answer}\n"
+        "Score 2 if the answer agrees with the evidence, 1 for partial agreement, 0 otherwise. "
+        "Return JSON with score, reason and unsupported_claims.\n"
+        f"Question: {question}\nEvidence: {evidence}\nAnswer: {answer}"
     )
 
 
-@pytest.mark.parametrize(
-    ("raw_score", "expected_score", "expected_pass"),
-    [
-        (0, 0.0, False),
-        (1, 0.5, False),
-        (2, 1.0, True),
-    ],
-)
-def test_public_integration(
-    raw_score: int,
-    expected_score: float,
-    expected_pass: bool,
-) -> None:
-    """Connect the custom judge to DeepEval without external calls."""
-    question = "What color is the sample?"
-    answer = "The sample is blue."
-    evidence = "The sample is blue."
+def run(score, claims=()):
+    """Score one reply through scorer -> judge_answer -> fake generator."""
+    prompts = []
 
-    calls: list[str] = []
+    async def generate(prompt):
+        prompts.append(prompt)
+        return json.dumps({"score": score, "reason": "demo", "unsupported_claims": list(claims)})
 
-    def mock_generate(prompt: str) -> str:
-        calls.append(prompt)
-        return json.dumps(
-            {
-                "score": raw_score,
-                "reason": "Demonstration judgment.",
-                "unsupported_claims": [],
-            }
-        )
-
-    def configured_judge(
-        question: str,
-        answer: str,
-        evidence: str,
-    ):
-        return judge_answer(
-            question=question,
-            answer=answer,
-            evidence=evidence,
-            prompt_builder=example_prompt_builder,
-            generate=mock_generate,
-        )
-
-    metric = ScientificReasoningMetric(
-        evidence=evidence,
-        judge=configured_judge,
-        threshold=1.0,
-    )
-
-    test_case = LLMTestCase(
-        input=question,
-        actual_output=answer,
-    )
-
-    score = metric.measure(test_case)
-
-    assert score == expected_score
-    assert metric.score == expected_score
-    assert metric.is_successful() is expected_pass
-    assert metric.judgment is not None
-    assert metric.judgment.score == raw_score
-    assert len(calls) == 1
-    assert question in calls[0]
-    assert answer in calls[0]
-    assert evidence in calls[0]
+    judge = partial(judge_answer, prompt_builder=example_prompt_builder, generate=generate)
+    state = SimpleNamespace(input_text="Q", output=SimpleNamespace(completion="A"))
+    result = asyncio.run(scientific_reasoning(judge, "E")(state, None))
+    return result, prompts
 
 
-def test_unsupported_claims_reach_metric_reason() -> None:
-    """Check that unsupported claims remain visible in DeepEval."""
+@pytest.mark.parametrize(("score", "passed"), [(0, 0), (1, 0), (2, 1)])
+def test_score_levels_map_to_pass_fail(score, passed):
+    result, prompts = run(score)
+    assert result.value == passed
+    assert result.metadata["normalized_score"] == score / 2
+    assert all(text in prompts[0] for text in ("Q", "A", "E"))
 
-    def mock_generate(prompt: str) -> str:
-        return json.dumps(
-            {
-                "score": 0,
-                "reason": "The statement is unsupported.",
-                "unsupported_claims": ["The sample is green."],
-            }
-        )
 
-    def configured_judge(
-        question: str,
-        answer: str,
-        evidence: str,
-    ):
-        return judge_answer(
-            question=question,
-            answer=answer,
-            evidence=evidence,
-            prompt_builder=example_prompt_builder,
-            generate=mock_generate,
-        )
-
-    metric = ScientificReasoningMetric(
-        evidence="The sample is blue.",
-        judge=configured_judge,
-    )
-
-    metric.measure(
-        LLMTestCase(
-            input="What color is the sample?",
-            actual_output="The sample is green.",
-        )
-    )
-
-    assert metric.score == 0.0
-    assert not metric.is_successful()
-    assert "The sample is green." in metric.reason
+def test_unsupported_claims_reach_the_explanation():
+    assert "The sample is green." in run(0, ["The sample is green."])[0].explanation
