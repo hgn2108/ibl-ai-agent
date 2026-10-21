@@ -24,6 +24,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+evals = [
+  "inspect-ai>=0.3.282",
+  "anthropic>=1.0",
+  "mistralai>=3.0",
+  "openai>=3.4",  # inspect's mistral provider imports it
+  "tabulate>=0.9",
+]
 ibl = [
   "ONE-api>=3.0",
   "ibllib>=3.3",

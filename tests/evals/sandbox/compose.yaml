@@ -1,0 +1,21 @@
+# Sandbox for model-written code (Inspect's python() tool): no network, read-only repo.
+services:
+  default:
+    build: .
+    image: ibl-eval-sandbox
+    command: tail -f /dev/null
+    init: true
+    working_dir: /repo
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 8g
+    environment:
+      PYTHONPATH: /repo
+      HOME: /tmp
+      IBL_AGENT_DATA_OFFLINE: "1"
+      IBL_AGENT_DATA_LOCATIONS: /repo/tests/evals/sandbox/data_locations.yaml
+    volumes:
+      - ../../..:/repo:ro
+      # Where the datasets live on the host; set EVAL_DATA_DIR to use another location.
+      - ${EVAL_DATA_DIR:-../../../reports/datasets}:/data:ro
