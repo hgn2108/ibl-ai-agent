@@ -1,94 +1,86 @@
 # Evals
 
-Questions that test whether a model can load and query the IBL datasets, run
-against Claude, Mistral and Lightning AI models. Every night CI runs them against
-one model per provider.
+Questions that test whether a model can use this repo's guidance to load and query the
+IBL datasets. They run as [Inspect](https://inspect.aisi.org.uk) tasks, against any
+model Inspect supports, with model-written code executed in a Docker sandbox. Every
+night CI runs them against one model per provider.
 
 ## Layout
 
 | Path | Role |
 |---|---|
 | `questions/*.json` | Questions with their `expected` answer |
-| `actors/` | One interface over three providers: `run(prompt) -> RunResult(reply, usage)` |
+| `questions.py` | Loads questions and builds prompts (stdlib only) |
 | `checks.py` | Grading: the reply's final JSON object must equal `expected` |
-| `test_dataloading.py` | Data questions (`task: codegen`) x every model in the grid |
-| `test_skill_selection.py` | Skill-routing questions (`task: skill_selection`) x every model |
-| `summarize_results.py` | Per-run log (`usage.csv`) and the summary table (`summary.md`) |
-| `models.default.json` | One model per provider: the nightly grid |
-| `models.grid.json` | 15 models verified callable on the team keys (2026-10-05) |
-
-## Actors
-
-```
-Actor                       run(prompt) -> RunResult(reply, usage)
-├── CodeExecutingActor
-│   └── ClaudeSDKActor      Claude Code agent (claude-agent-sdk)
-└── ChatCompletionActor     chat endpoint + a run_python tool loop
-    ├── LightningActor      OpenAI-compatible API
-    └── MistralActor        Mistral SDK
-```
-
-Claude arrives as an agent with its own tools. Mistral and Lightning are chat
-endpoints, so they get one tool, `run_python`, and a loop: call the model, run the
-code it asks for, feed the output back, until it answers or hits `max_turns`.
-Without that a data question is unanswerable for them and the comparison
-meaningless. `"tools": false` in a grid entry removes the tool: the no-data
-baseline.
-
-To add a provider: one `Actor` subclass and one entry in `PROVIDERS`
-(`actors/__init__.py`). Chat providers implement `_client`, `_complete`,
-`_assistant_message` and `_tool_message`; the loop is shared.
+| `skill_router.py` | Maps the Required Load Packets of AGENTS.md to skill files |
+| `tasks.py` | The Inspect tasks: `dataloading`, `skill_selection` |
+| `sandbox/` | Dockerfile, compose file and dataset paths for the code sandbox |
+| `models.json` | The default list of models, as Inspect ids |
+| `run.py` | Runs the tasks on those models; shared by CI and ad hoc runs |
+| `summarize.py` | Model x question table from a directory of logs |
 
 ## Running
 
-Unit tests mock every API call and need no keys, data or network:
+Unit tests need no keys, data, Docker or network (those that need `inspect-ai` skip
+without the `evals` extra):
 
 ```bash
-UV_CACHE_DIR=.uv-cache uv sync --extra dev --extra evals
-UV_CACHE_DIR=.uv-cache uv run --no-sync pytest tests/evals
+uv sync --extra dev --extra evals
+uv run pytest tests/evals
 ```
 
-Live evals call model APIs, so they only run with `RUN_LIVE_EVALS=1`. They need
-`bwm_ephys` (`scripts/download_datasets.py`) and keys in `tests/evals/.env.local`
-(gitignored): `ANTHROPIC_API_KEY` (or a local `claude login`), `MISTRAL_API_KEY`,
-`LITAI_API_KEY`.
+Evals call model APIs and need Docker plus `bwm_ephys` (`scripts/download_datasets.py`).
+Copy `tests/evals/.env.template` to `.env` at the repo root and fill in the keys, then:
 
 ```bash
-RUN_LIVE_EVALS=1 UV_CACHE_DIR=.uv-cache uv run --no-sync pytest \
-    tests/evals/test_dataloading.py tests/evals/test_skill_selection.py -n 3
-UV_CACHE_DIR=.uv-cache uv run --no-sync python tests/evals/summarize_results.py
+uv run python -m tests.evals.run                    # every task on the models of models.json
+uv run python -m tests.evals.run --models anthropic/claude-haiku-4-5 --task skill_selection
+uv run python tests/evals/summarize.py tests/evals/logs
+uv run inspect view   # browse transcripts, tool calls and token usage
 ```
 
-`EVAL_MODELS_FILE` picks another grid (e.g. `tests/evals/models.grid.json`) and
-`EVAL_RESULTS_DIR` moves the output from `tests/evals/results/`.
+The models come from `models.json`, a JSON list of Inspect ids; `--models` (comma-separated)
+or `--models-file` override it, and any model Inspect knows works. `run.py` exits 1 when a
+run breaks, not when answers are wrong. `inspect eval tests/evals/tasks.py --model <id>`
+also works for a single run. `EVAL_DATA_DIR` points the sandbox at datasets outside
+`reports/datasets`.
 
-## Reading results
+### Lightning AI and other OpenAI-compatible providers
 
-`usage.csv` has one row per run: timestamp, commit, model, question, pass, tokens,
-cost, turns and `stop_reason`. Failures that score the same are not the same:
+Inspect reaches any OpenAI-compatible endpoint as `openai-api/<provider>/<model>`,
+reading `<PROVIDER>_API_KEY` and `<PROVIDER>_BASE_URL` (hyphens become underscores).
+For Lightning AI set `LIGHTNING_API_KEY` and `LIGHTNING_BASE_URL=https://lightning.ai/api/v1/`
+in `.env`, then:
 
-- `answered`: the model gave an answer (right or wrong)
-- `max_turns`: it kept working and ran out of turns
-- a provider reason such as `malformed_function_call`: nothing usable came back
-- an exception name such as `AuthenticationError`: the call itself failed
+```bash
+uv run python -m tests.evals.run --models openai-api/lightning/openai/gpt-5-mini
+```
 
-Only Claude reports cost; tokens are reported by all providers.
+Not yet verified against Lightning. Provider quirks are set per run, not in code:
+`-M strict_tools=false` if the endpoint rejects strict tool schemas, `--max-tokens` if a
+model wants `max_completion_tokens`. A model that returns empty or malformed tool calls
+shows up as a failed sample: read its transcript in `inspect view`. For the nightly CI add
+the model to `models.json` or pass it in the workflow's `models` input; the
+`LIGHTNING_API_KEY` secret is optional.
 
-## Nightly CI
+## The sandbox
 
-`.github/workflows/nightly-evals.yaml` runs at 06:00 UTC and on demand (Actions
-tab, with a choice of grid file). It needs three repository secrets:
-`ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `LITAI_API_KEY`. `bwm_ephys` is extracted
-without `spikes/` (553 MB instead of 6 GB), checked against its sha1 and cached.
-A wrong answer does not fail the job; a broken harness does. Results are in the
-run summary and the `eval-results-<run id>` artifact.
+Model-written code runs in a container (`sandbox/compose.yaml`) with no network, a
+read-only repo, the datasets mounted read-only at `/data` and `IBL_AGENT_DATA_OFFLINE=1`.
+Nothing a model writes touches your machine. Add packages the analyses need to
+`sandbox/Dockerfile`.
 
 ## Writing a question
 
-Each entry in `questions/*.json` has an `id`, the `question`, a `task`, the
-`packets` of AGENTS.md whose skill files go in the prompt, `requires_data`, and
-`expected`: a flat `{key: number}` dict. The prompt tells the model to end with a
-JSON object with those keys, and the test compares it to `expected`, so a new
-question is data only. Skill-selection questions use `expected_skills` instead.
-Prefer answers a plausible mistake gets wrong: `bwm_visual_hemisphere.json`
-documents its traps in `_notes`.
+Each entry in `questions/*.json` has an `id`, the `question`, a `task`, the `packets`
+of AGENTS.md whose skill files go in the prompt, `requires_data`, and `expected`: a flat
+`{key: number}` dict. The prompt tells the model to end with a JSON object with those
+keys, and the scorer compares it to `expected`, so a new question is data only.
+Skill-selection questions use `expected_skills` instead. Prefer answers a plausible
+mistake gets wrong: `bwm_visual_hemisphere.json` documents its traps in `_notes`.
+
+## Reading results
+
+Inspect logs hold every message, tool call and token count per sample. A model that
+stops without a JSON answer scores as a failure, as does a wrong value: look at the
+transcript to tell them apart.

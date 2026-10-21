@@ -24,14 +24,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# inspect-ai needs Python 3.11; the marker keeps `uv sync` resolvable for the 3.10 this
+# project still supports. On 3.10 the evals tests that need it skip.
 evals = [
-  "deepeval>=4.0.7",
-  "python-dotenv>=1.0",
-  "pytest-xdist>=3.5",
-  "claude-agent-sdk>=0.1",
-  "openai>=1.0",
-  "mistralai>=1.9",
-  "tabulate>=0.9",
+  "inspect-ai>=0.3.282; python_version >= '3.11'",
+  "anthropic>=1.0; python_version >= '3.11'",
+  "mistralai>=3.0; python_version >= '3.11'",
+  "openai>=3.4; python_version >= '3.11'",  # inspect's mistral provider imports it
+  "tabulate>=0.9; python_version >= '3.11'",
 ]
 ibl = [
   "ONE-api>=3.0",

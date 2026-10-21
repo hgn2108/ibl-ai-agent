@@ -1,25 +1,29 @@
 name: nightly-evals
 
-# Runs the eval questions in tests/evals/questions against one model per
-# provider (Claude, Mistral, Lightning), every night and on demand.
+# Runs the Inspect tasks in tests/evals/tasks.py on the models of
+# tests/evals/models.json (override with the `models` input), every night and on
+# demand. Model-written code runs in the Docker sandbox of tests/evals/sandbox.
+# The same entry point works locally: `uv run python -m tests.evals.run`.
 #
 # Required repository secrets:
-#   ANTHROPIC_API_KEY  Claude, through claude-agent-sdk
+#   ANTHROPIC_API_KEY  Claude
 #   MISTRAL_API_KEY    Mistral
-#   LITAI_API_KEY      Lightning AI
+# Optional:
+#   LIGHTNING_API_KEY  Lightning AI, for a model such as openai-api/lightning/<model>.
+#                      Not required, so a Lightning outage cannot fail the run.
 #
-# A failing model is a measurement, not a broken build: the job only fails when
-# the harness itself breaks (setup, data, collection). Results are uploaded as
-# an artifact and written to the run summary.
+# A failing model is a measurement, not a broken build: tests/evals/run.py exits 0
+# when answers are wrong and 1 when the harness breaks (setup, sandbox,
+# provider errors). Logs are uploaded as an artifact; a table goes to the run summary.
 
 on:
   schedule:
     - cron: "0 6 * * *" # 06:00 UTC, 02:00 New York
   workflow_dispatch:
     inputs:
-      models_file:
-        description: "Model grid, relative to the repo root"
-        default: "tests/evals/models.default.json"
+      models:
+        description: "Comma-separated Inspect model ids; empty uses tests/evals/models.json"
+        default: ""
 
 concurrency:
   group: nightly-evals
@@ -27,7 +31,9 @@ concurrency:
 
 env:
   UV_CACHE_DIR: .uv-cache
-  MODELS_FILE: ${{ inputs.models_file || 'tests/evals/models.default.json' }}
+  MODELS: ${{ inputs.models }}  # empty on schedule: run.py then reads models.json
+  # Mounted read-only at /data in the sandbox.
+  EVAL_DATA_DIR: ${{ github.workspace }}/reports/datasets
   # Keep in sync with ARCHIVES in scripts/download_datasets.py.
   BWM_EPHYS_VERSION: "1.2.1"
   BWM_EPHYS_SHA1: "b18c5c7a2944be510800010eb3df90aac84a2a52"
@@ -44,7 +50,7 @@ jobs:
           version: "0.12.13"
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12" # inspect-ai needs 3.11+; ci.yaml stays on 3.10
       - name: Install dependencies
         run: uv sync --extra dev --extra evals
 
@@ -76,70 +82,43 @@ jobs:
         with:
           path: reports/datasets/bwm_ephys/${{ env.BWM_EPHYS_VERSION }}
           key: ${{ steps.data-cache.outputs.cache-primary-key }}
-      - name: Configure data locations
-        run: |
-          cat > data_locations.local.yaml <<EOF
-          datasets:
-            bwm_ephys:
-              root: ${GITHUB_WORKSPACE}/reports/datasets/bwm_ephys
-              preferred_version: latest
-          EOF
-          uv run --no-sync python -c \
-            "from ibl_ai_agent.data_locations import resolve_dataset_dir; print(resolve_dataset_dir('bwm_ephys'))"
-
-      - name: Unit tests (mocked, no network)
+      - name: Unit tests (offline)
         run: uv run --no-sync pytest -q tests/evals
 
       - name: Check API keys
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          LITAI_API_KEY: ${{ secrets.LITAI_API_KEY }}
         run: |
           # A missing key would otherwise surface as every model of that
           # provider failing, which reads like a result.
-          for key in ANTHROPIC_API_KEY MISTRAL_API_KEY LITAI_API_KEY; do
+          for key in ANTHROPIC_API_KEY MISTRAL_API_KEY; do
             if [ -z "${!key}" ]; then echo "::error::secret $key is not set"; missing=1; fi
           done
           exit "${missing:-0}"
 
-      - name: Live evals
-        id: evals
+      - name: Evals
         env:
-          RUN_LIVE_EVALS: "1"
-          # Answers must come from the cached local data, not live Alyx/ONE.
-          IBL_AGENT_DATA_OFFLINE: "1"
-          EVAL_MODELS_FILE: ${{ env.MODELS_FILE }}
-          EVAL_RESULTS_DIR: ${{ runner.temp }}/eval-results
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          LITAI_API_KEY: ${{ secrets.LITAI_API_KEY }}
+          LIGHTNING_API_KEY: ${{ secrets.LIGHTNING_API_KEY }}
+          LIGHTNING_BASE_URL: https://lightning.ai/api/v1/
         run: |
-          set +e
-          uv run --no-sync pytest tests/evals/test_dataloading.py tests/evals/test_skill_selection.py \
-            -n 3 -rA --junitxml="$EVAL_RESULTS_DIR/junit.xml"
-          code=$?
-          set -e
-          # pytest exit 1 means some evals failed, which is the expected
-          # outcome. Anything above 1 (interrupted, collection or usage error,
-          # nothing collected) is a broken harness.
-          if [ "$code" -gt 1 ]; then exit "$code"; fi
+          uv run --no-sync python -m tests.evals.run \
+            --models "$MODELS" --log-dir "$RUNNER_TEMP/eval-logs"
 
       - name: Summarize
-        if: always() && steps.evals.outcome != 'skipped'
-        env:
-          EVAL_RESULTS_DIR: ${{ runner.temp }}/eval-results
+        if: always()
         run: |
-          uv run --no-sync python tests/evals/summarize_results.py
           {
-            echo "Commit \`${GITHUB_SHA::7}\`, models from \`${MODELS_FILE}\`."
+            echo "Commit \`${GITHUB_SHA::7}\`, models \`${MODELS:-models.json}\`."
             echo
-            cat "$EVAL_RESULTS_DIR/summary.md"
+            uv run --no-sync python tests/evals/summarize.py "$RUNNER_TEMP/eval-logs"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload results
-        if: always() && steps.evals.outcome != 'skipped'
+      - name: Upload logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-results-${{ github.run_id }}
-          path: ${{ runner.temp }}/eval-results
+          name: eval-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/eval-logs
           retention-days: 90

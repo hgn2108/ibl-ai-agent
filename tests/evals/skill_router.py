@@ -1,99 +1,61 @@
-"""Skill file router for DeepEval evals.
+"""Skill files for eval prompts, read from the Required Load Packets of AGENTS.md.
 
-Maps the Required Load Packet names from AGENTS.md to skill file paths,
-so individual tests declare packet names rather than file paths.
-
-Usage
------
-from tests.evals.skill_router import get_skill_files
-
-SKILL_FILES = get_skill_files("scientific", "data_loading", "bwm", "anatomy")
-RETRIEVAL_CONTEXT = [p.read_text() for p in SKILL_FILES]
+AGENTS.md is the single source of truth for which files a task loads, so packets are
+parsed from it rather than listed here. Questions name a packet by any unique part of
+its heading, case-insensitive: ``"data loading"``, ``"Brain Wide Map"``, ``"atlas"``.
 """
 
+from __future__ import annotations
+
+import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent.parent.parent
-_S = REPO_ROOT.joinpath("skills")
-_D = REPO_ROOT.joinpath("docs")
+REPO_ROOT = Path(__file__).parents[2]
 
-# Keys mirror the Required Load Packets section of AGENTS.md.
-PACKETS: dict[str, list[Path]] = {
-    # Plain IBL scientific question
-    "scientific": [
-        _S.joinpath("exploration-confirmation", "SKILL.md"),
-        _S.joinpath("scientific-coding-style", "SKILL.md"),
-        _S.joinpath("ibl-analyze", "SKILL.md"),
-    ],
-    # Final report writing
-    "reporting": [
-        _S.joinpath("ibl-report", "SKILL.md"),
-    ],
-    # IBL data loading (base)
-    "data_loading": [
-        _S.joinpath("ibl-load", "SKILL.md"),
-        _S.joinpath("ibl-load", "references", "data_loading.md"),
-    ],
-    # Local dataset path resolution
-    "data_locations": [
-        _D.joinpath("data_locations.md"),
-    ],
-    # Brain Wide Map question
-    "bwm": [
-        _S.joinpath("ibl-load", "references", "bwm_runtime_policy.md"),
-        _S.joinpath("ibl-load", "references", "bwm_ephys_spike_example.md"),
-        _S.joinpath("ibl-analyze", "references", "bwm_analysis_patterns.md"),
-    ],
-    # Region filtering, QC, and atlas mapping for spike-sorting outputs
-    "region_qc": [
-        _S.joinpath("ibl-load", "references", "brain_regions_qc.md"),
-    ],
-    # Anatomical atlas navigation, hierarchy traversal, brain-map plots
-    "anatomy": [
-        _S.joinpath("ibl-anatomy", "SKILL.md"),
-        _S.joinpath("ibl-anatomy", "references", "atlas_navigation.md"),
-    ],
-    # Ambiguous scientific metric definitions
-    "metric_semantics": [
-        _S.joinpath("ibl-analyze", "references", "scientific_context_and_metric_semantics.md"),
-    ],
-    # ONE / Alyx authentication and session search
-    "access": [
-        _S.joinpath("ibl-access", "SKILL.md"),
-        _S.joinpath("ibl-access", "references", "one_auth.md"),
-        _S.joinpath("ibl-access", "references", "session_search.md"),
-    ],
-    # Raw Neuropixels / SpikeGLX preprocessing
-    "neuropixel": [
-        _S.joinpath("ibl-neuropixel", "SKILL.md"),
-        _S.joinpath("ibl-neuropixel", "references", "neuropixel_routing.md"),
-    ],
-}
+
+def load_packets(agents_md: Path = REPO_ROOT.joinpath("AGENTS.md")) -> dict[str, list[Path]]:
+    """Return ``{heading: [files]}`` for every packet of the Required Load Packets section.
+
+    A packet is a line ending in ``:`` followed by bullets; every backticked path in a
+    bullet is a file, or a directory standing for all the markdown files under it.
+    """
+    section = agents_md.read_text().split("## Required Load Packets", 1)[1].split("\n## ", 1)[0]
+    packets: dict[str, list[Path]] = {}
+    current = None
+    for line in section.splitlines():
+        if line.endswith(":") and not line.startswith("-"):
+            current = packets.setdefault(line.removesuffix(":").strip(), [])
+        elif current is not None and line.startswith("- "):
+            for rel in re.findall(r"`([^`]+)`", line):
+                path = REPO_ROOT.joinpath(rel)
+                current += sorted(path.rglob("*.md")) if path.is_dir() else [path]
+    return packets
+
+
+PACKETS = load_packets()
 
 
 def get_skill_files(*packets: str) -> list[Path]:
-    """Return deduplicated ordered skill file paths for the given packet names.
+    """Return deduplicated file paths for the named packets, in the order named.
 
     Parameters
     ----------
     *packets
-        One or more packet names matching keys in ``PACKETS``.
+        Each a part of exactly one packet heading, case-insensitive.
 
     Returns
     -------
     list[Path]
-        Deduplicated skill file paths in declaration order.
 
     Raises
     ------
     KeyError
-        If an unknown packet name is passed.
+        If a name matches no heading, or more than one.
     """
-    seen: set[Path] = set()
-    result: list[Path] = []
-    for packet in packets:
-        for path in PACKETS[packet]:
-            if path not in seen:
-                seen.add(path)
-                result.append(path)
-    return result
+    files: list[Path] = []
+    for name in packets:
+        matches = [key for key in PACKETS if name.lower() in key.lower()]
+        if len(matches) != 1:
+            raise KeyError(f"{name!r} matches {len(matches)} packets: {matches}")
+        files += [path for path in PACKETS[matches[0]] if path not in files]
+    return files

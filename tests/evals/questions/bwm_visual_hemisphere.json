@@ -3,7 +3,7 @@
     "id": "bwm-visual-cortex-by-hemisphere",
     "question": "Using the local bwm_ephys dataset, how many good units were recorded in visual cortex (the areas under VIS in the Allen hierarchy), split by hemisphere? And how many sessions have visual-cortex units in both hemispheres?",
     "task": "codegen",
-    "packets": ["scientific", "data_loading", "bwm", "anatomy", "region_qc"],
+    "packets": ["analysis project", "code generation", "data loading", "Brain Wide Map", "atlas"],
     "requires_data": "bwm_ephys",
     "_notes": [
       "Ground truth from metadata/units.parquet (good units only) joined to the",
