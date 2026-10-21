@@ -50,7 +50,7 @@ jobs:
           version: "0.12.13"
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12" # inspect-ai needs 3.11+; ci.yaml stays on 3.10
       - name: Install dependencies
         run: uv sync --extra dev --extra evals
 
