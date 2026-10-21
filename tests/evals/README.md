@@ -1,124 +1,86 @@
 # Evals
 
-DeepEval test suite for the IBL AI agent. Tests measure the quality of model outputs
-(code generation, skill selection) against known ground truths.
+Questions that test whether a model can use this repo's guidance to load and query the
+IBL datasets. They run as [Inspect](https://inspect.aisi.org.uk) tasks, against any
+model Inspect supports, with model-written code executed in a Docker sandbox. Every
+night CI runs them against one model per provider.
 
-## Setup
+## Layout
 
-**1. API keys** in `tests/evals/.env.local` (never committed):
-```
-ANTHROPIC_API_KEY=sk-ant-...
-LITAI_API_KEY=sk-lit-...
-```
+| Path | Role |
+|---|---|
+| `questions/*.json` | Questions with their `expected` answer |
+| `questions.py` | Loads questions and builds prompts (stdlib only) |
+| `checks.py` | Grading: the reply's final JSON object must equal `expected` |
+| `skill_router.py` | Maps the Required Load Packets of AGENTS.md to skill files |
+| `tasks.py` | The Inspect tasks: `dataloading`, `skill_selection` |
+| `sandbox/` | Dockerfile, compose file and dataset paths for the code sandbox |
+| `models.json` | The default list of models, as Inspect ids |
+| `run.py` | Runs the tasks on those models; shared by CI and ad hoc runs |
+| `summarize.py` | Model x question table from a directory of logs |
 
-**2. Model grid** in `tests/evals/models.json` (gitignored):
-```json
-[
-  { "provider": "anthropic", "model": "claude-haiku-4-5-20251001" },
-  { "provider": "litai",     "model": "lightning-ai/gpt-oss-20b" }
-]
-```
-Falls back to `models.default.json` (single Haiku) if `models.json` is absent.
+## Running
 
-## Dataset setup
-
-`test_codegen.py` requires the `bwm_ephys` dataset (~5 GB). Tests that need it are
-auto-skipped when the dataset is absent.
-
-Download it with the bundled script (public S3 bucket, no credentials required):
+Unit tests need no keys, data, Docker or network (those that need `inspect-ai` skip
+without the `evals` extra):
 
 ```bash
-python scripts/download_datasets.py
+uv sync --extra dev --extra evals
+uv run pytest tests/evals
 ```
 
-The dataset lands at `reports/datasets/bwm_ephys/` by default. To point at an
-existing copy elsewhere, create `data_locations.local.yaml` at the repo root:
-
-```yaml
-datasets:
-  bwm_ephys:
-    root: /path/to/your/bwm_ephys
-```
-
-## Running the tests
-
-Tests are parametrized over the model grid and spend most of their time waiting
-for LLM responses, so running them in parallel with `-n auto` is recommended:
+Evals call model APIs and need Docker plus `bwm_ephys` (`scripts/download_datasets.py`).
+Copy `tests/evals/.env.template` to `.env` at the repo root and fill in the keys, then:
 
 ```bash
-# Skill selection — no local data required
-pytest tests/evals/tier_1_test_skill_selection.py -v -n auto
-
-# Code generation — requires bwm_ephys dataset (auto-skipped if absent)
-pytest tests/evals/test_codegen.py -v -n auto
-
-# All auto-discovered tests
-pytest tests/evals/ -v -n auto
+uv run python -m tests.evals.run                    # every task on the models of models.json
+uv run python -m tests.evals.run --models anthropic/claude-haiku-4-5 --task skill_selection
+uv run python tests/evals/summarize.py tests/evals/logs
+uv run inspect view   # browse transcripts, tool calls and token usage
 ```
 
-`-n auto` spawns one worker per CPU core. Pass `-n 4` (or any integer) to cap
-concurrency — useful when you want to respect API rate limits.
+The models come from `models.json`, a JSON list of Inspect ids; `--models` (comma-separated)
+or `--models-file` override it, and any model Inspect knows works. `run.py` exits 1 when a
+run breaks, not when answers are wrong. `inspect eval tests/evals/tasks.py --model <id>`
+also works for a single run. `EVAL_DATA_DIR` points the sandbox at datasets outside
+`reports/datasets`.
 
-### Logging tiers
+### Lightning AI and other OpenAI-compatible providers
 
-On failure, pytest shows two output sections:
-
-| Section | What you see | When |
-|---|---|---|
-| **Captured stdout** | execution result (neuron counts, etc.) | always |
-| **Captured log** | full generated code | `--log-level=DEBUG` |
+Inspect reaches any OpenAI-compatible endpoint as `openai-api/<provider>/<model>`,
+reading `<PROVIDER>_API_KEY` and `<PROVIDER>_BASE_URL` (hyphens become underscores).
+For Lightning AI set `LIGHTNING_API_KEY` and `LIGHTNING_BASE_URL=https://lightning.ai/api/v1/`
+in `.env`, then:
 
 ```bash
-# Default — see execution output on failure
-pytest tests/evals/test_codegen.py -v -n auto
-
-# Verbose — also see the full generated code and reasoning
-pytest tests/evals/test_codegen.py -v -n auto --log-level=DEBUG
-
-# Inline (single-threaded) — stream everything to the terminal live
-pytest tests/evals/test_codegen.py -v -s -n0 --log-cli-level=DEBUG
+uv run python -m tests.evals.run --models openai-api/lightning/openai/gpt-5-mini
 ```
 
-Each test is parametrized over every model in `models.json`, producing one result
-per `(model, question)` pair.
+Not yet verified against Lightning. Provider quirks are set per run, not in code:
+`-M strict_tools=false` if the endpoint rejects strict tool schemas, `--max-tokens` if a
+model wants `max_completion_tokens`. A model that returns empty or malformed tool calls
+shows up as a failed sample: read its transcript in `inspect view`. For the nightly CI add
+the model to `models.json` or pass it in the workflow's `models` input; the
+`LIGHTNING_API_KEY` secret is optional.
 
-### Single model, single question
+## The sandbox
 
-Use `-k` to filter by any part of the test ID:
+Model-written code runs in a container (`sandbox/compose.yaml`) with no network, a
+read-only repo, the datasets mounted read-only at `/data` and `IBL_AGENT_DATA_OFFLINE=1`.
+Nothing a model writes touches your machine. Add packages the analyses need to
+`sandbox/Dockerfile`.
 
-```bash
-# One model
-pytest tests/evals/test_codegen.py -v -k "haiku"
+## Writing a question
 
-# One question
-pytest tests/evals/test_codegen.py -v -k "bwm-neuron-count"
+Each entry in `questions/*.json` has an `id`, the `question`, a `task`, the `packets`
+of AGENTS.md whose skill files go in the prompt, `requires_data`, and `expected`: a flat
+`{key: number}` dict. The prompt tells the model to end with a JSON object with those
+keys, and the scorer compares it to `expected`, so a new question is data only.
+Skill-selection questions use `expected_skills` instead. Prefer answers a plausible
+mistake gets wrong: `bwm_visual_hemisphere.json` documents its traps in `_notes`.
 
-# Both
-pytest tests/evals/test_codegen.py -v -k "haiku and bwm-neuron-count"
-```
+## Reading results
 
-Test IDs follow the pattern `test_codegen[<provider>/<model>-<question-id>]`,
-so any substring of the provider, model name, or question id works as a filter.
-
-To push results to Confident AI, set `DEEPEVAL_API_KEY` and use
-`deepeval test run` instead of `pytest`.
-
-## Adding questions
-
-Add an entry to the appropriate file in `tests/evals/questions/`:
-
-```json
-{
-  "id": "my-question-id",
-  "question": "...",
-  "task": "codegen",
-  "packets": ["scientific", "data_loading", "bwm"],
-  "requires_data": "bwm_ephys",
-  "checks": [
-    { "metric": "HierarchyMetric", "stage": "code" },
-    { "metric": "NeuronCountMetric", "stage": "output", "expected": { "CB": [7178, 53660] } }
-  ]
-}
-```
-
-Available `packets` are defined in `skill_router.py`. Available `metrics` are in `metrics.py`.
+Inspect logs hold every message, tool call and token count per sample. A model that
+stops without a JSON answer scores as a failure, as does a wrong value: look at the
+transcript to tell them apart.
