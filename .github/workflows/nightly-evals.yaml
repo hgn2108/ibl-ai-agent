@@ -1,0 +1,124 @@
+name: nightly-evals
+
+# Runs the Inspect tasks in tests/evals/tasks.py on the models of
+# tests/evals/models.json (override with the `models` input), every night and on
+# demand. Model-written code runs in the Docker sandbox of tests/evals/sandbox.
+# The same entry point works locally: `uv run python -m tests.evals.run`.
+#
+# Required repository secrets:
+#   ANTHROPIC_API_KEY  Claude
+#   MISTRAL_API_KEY    Mistral
+# Optional:
+#   LIGHTNING_API_KEY  Lightning AI, for a model such as openai-api/lightning/<model>.
+#                      Not required, so a Lightning outage cannot fail the run.
+#
+# A failing model is a measurement, not a broken build: tests/evals/run.py exits 0
+# when answers are wrong and 1 when the harness breaks (setup, sandbox,
+# provider errors). Logs are uploaded as an artifact; a table goes to the run summary.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC, 02:00 New York
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Comma-separated Inspect model ids; empty uses tests/evals/models.json"
+        default: ""
+
+concurrency:
+  group: nightly-evals
+  cancel-in-progress: false
+
+env:
+  UV_CACHE_DIR: .uv-cache
+  MODELS: ${{ inputs.models }}  # empty on schedule: run.py then reads models.json
+  # Mounted read-only at /data in the sandbox.
+  EVAL_DATA_DIR: ${{ github.workspace }}/reports/datasets
+  # Keep in sync with ARCHIVES in scripts/download_datasets.py.
+  BWM_EPHYS_VERSION: "1.2.1"
+  BWM_EPHYS_SHA1: "b18c5c7a2944be510800010eb3df90aac84a2a52"
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          # Same pin as ci.yaml; see the note there.
+          version: "0.12.13"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # inspect-ai needs 3.11+; ci.yaml stays on 3.10
+      - name: Install dependencies
+        run: uv sync --extra dev --extra evals
+
+      # The questions only read metadata and feature tables. The spike arrays
+      # are most of the 6 GB archive, so they are skipped at extraction and
+      # the slim copy is cached across nights.
+      - name: Restore bwm_ephys (without spikes)
+        id: data-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: reports/datasets/bwm_ephys/${{ env.BWM_EPHYS_VERSION }}
+          key: bwm_ephys-${{ env.BWM_EPHYS_VERSION }}-nospikes-${{ env.BWM_EPHYS_SHA1 }}
+      - name: Download bwm_ephys (without spikes)
+        if: steps.data-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p reports/datasets
+          url="https://ibl-brain-wide-map-public.s3.amazonaws.com/resources/ibl-agent-data/bwm_ephys-${BWM_EPHYS_VERSION}.tar"
+          curl -sSfL "$url" \
+            | tee >(sha1sum | cut -d' ' -f1 > "$RUNNER_TEMP/bwm_ephys.sha1") \
+            | tar -x -C reports/datasets --exclude="bwm_ephys/${BWM_EPHYS_VERSION}/spikes/*"
+          sleep 1  # let the sha1sum process substitution finish writing
+          test "$(cat "$RUNNER_TEMP/bwm_ephys.sha1")" = "$BWM_EPHYS_SHA1" \
+            || { echo "::error::bwm_ephys sha1 mismatch"; exit 1; }
+      # Saved here rather than at job end: actions/cache only saves on success,
+      # and a night with failing evals should not download 6 GB again.
+      - name: Cache bwm_ephys (without spikes)
+        if: steps.data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: reports/datasets/bwm_ephys/${{ env.BWM_EPHYS_VERSION }}
+          key: ${{ steps.data-cache.outputs.cache-primary-key }}
+      - name: Unit tests (offline)
+        run: uv run --no-sync pytest -q tests/evals
+
+      - name: Check API keys
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        run: |
+          # A missing key would otherwise surface as every model of that
+          # provider failing, which reads like a result.
+          for key in ANTHROPIC_API_KEY MISTRAL_API_KEY; do
+            if [ -z "${!key}" ]; then echo "::error::secret $key is not set"; missing=1; fi
+          done
+          exit "${missing:-0}"
+
+      - name: Evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          LIGHTNING_API_KEY: ${{ secrets.LIGHTNING_API_KEY }}
+          LIGHTNING_BASE_URL: https://lightning.ai/api/v1/
+        run: |
+          uv run --no-sync python -m tests.evals.run \
+            --models "$MODELS" --log-dir "$RUNNER_TEMP/eval-logs"
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "Commit \`${GITHUB_SHA::7}\`, models \`${MODELS:-models.json}\`."
+            echo
+            uv run --no-sync python tests/evals/summarize.py "$RUNNER_TEMP/eval-logs"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/eval-logs
+          retention-days: 90

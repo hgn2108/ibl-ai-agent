@@ -1,0 +1,5 @@
+# Dataset roots as seen inside the sandbox (the host's reports/datasets is mounted at /data).
+datasets:
+  bwm_ephys:
+    root: /data/bwm_ephys
+    preferred_version: latest
