@@ -35,7 +35,7 @@ evals = [
 ]
 ibl = [
   "ONE-api>=3.0",
-  "ibllib>=3.3",
+  "ibllib>=4.1.1",
   "brainbox<=0.0.9",
 ]
 lfp = [
